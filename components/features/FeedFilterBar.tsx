@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { cn } from '@/lib/utils';
+import { PillToggle } from '@/components/ui/PillToggle';
 
 const FILTERS = ['For you', 'Following', 'Opportunities', 'Nearby'] as const;
 
@@ -13,24 +13,14 @@ export function FeedFilterBar() {
 
   return (
     <div role="group" aria-label="Feed filters" className="flex flex-wrap gap-2">
-      {FILTERS.map((filter) => {
-        const isActive = filter === active;
-        return (
-          <button
-            key={filter}
-            type="button"
-            aria-pressed={isActive}
-            onClick={() => setActive(filter)}
-            className={cn(
-              'whitespace-nowrap rounded-pill px-4 py-2 text-sm font-medium transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
-              isActive ? 'bg-fresh text-white' : 'border border-olive bg-white text-ink hover:bg-cream'
-            )}
-          >
-            {filter}
-          </button>
-        );
-      })}
+      {FILTERS.map((filter) => (
+        <PillToggle
+          key={filter}
+          label={filter}
+          isActive={filter === active}
+          onClick={() => setActive(filter)}
+        />
+      ))}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import {
   collection,
   collectionGroup,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
@@ -14,7 +15,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
-import type { JournalEntry, Opportunity, Project } from '@/lib/types';
+import type { JournalEntry, Opportunity, Project, ProjectWithStats } from '@/lib/types';
 
 function toMillis(value: unknown): number {
   if (value && typeof value === 'object' && 'toMillis' in value) {
@@ -64,6 +65,26 @@ export async function getPublicProjects(count: number): Promise<Project[]> {
     )
   );
   return snapshot.docs.map(projectFromDoc);
+}
+
+// Discover shows every public project (no page-size cap the way the Home
+// teaser has one), plus a per-project journal-entry count for the "X people
+// · Y entries" line. getCountFromServer is an aggregation query — it counts
+// server-side without downloading the entries themselves.
+export async function getDiscoverProjects(): Promise<ProjectWithStats[]> {
+  const snapshot = await getDocs(
+    query(collection(db, 'projects'), where('visibility', '==', 'public'), orderBy('createdAt', 'desc'))
+  );
+  const projects = snapshot.docs.map(projectFromDoc);
+
+  return Promise.all(
+    projects.map(async (project) => {
+      const countSnapshot = await getCountFromServer(
+        collection(db, 'projects', project.id, 'journalEntries')
+      ).catch(() => null);
+      return { ...project, journalEntryCount: countSnapshot?.data().count ?? 0 };
+    })
+  );
 }
 
 export async function getOpenOpportunities(count: number): Promise<Opportunity[]> {

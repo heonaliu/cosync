@@ -16,9 +16,23 @@ const ACCENT_TEXT: Record<AccentColor, string> = {
   lilac: 'text-deep-purple',
 };
 
+// A few category tags have a color the design calls out explicitly (e.g.
+// Discover's category filters). Everything else falls back to the hash below
+// so still-unstyled tags get a stable color instead of no color at all.
+const NAMED_TAG_COLORS: Record<string, AccentColor> = {
+  Hardware: 'sky',
+  Music: 'amber',
+  Robotics: 'sage',
+  AI: 'lilac',
+  Writing: 'sky',
+  Bio: 'sage',
+};
+
 // Same seed always maps to the same accent so a person's avatar or a tag's
 // chip color stays stable across the app instead of reshuffling per render.
 export function accentColorFor(seed: string): AccentColor {
+  if (seed in NAMED_TAG_COLORS) return NAMED_TAG_COLORS[seed];
+
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;

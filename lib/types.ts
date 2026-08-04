@@ -19,6 +19,12 @@ export type Project = {
   updatedAt: number;
 };
 
+// Discover's cards show a journal-entry count alongside the project, which
+// isn't a field on the project doc itself — it's a separate aggregation
+// query per project, so it's modeled as a distinct type rather than baked
+// into Project.
+export type ProjectWithStats = Project & { journalEntryCount: number };
+
 export type OpportunityType =
   | 'research'
   | 'hackathon'
