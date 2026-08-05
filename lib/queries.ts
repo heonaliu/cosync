@@ -108,6 +108,8 @@ async function opportunityFromDoc(docSnap: DocumentSnapshot<DocumentData>): Prom
     description: data.description ?? '',
     deadline: data.deadline ? toMillis(data.deadline) : undefined,
     location: data.location,
+    lat: typeof data.lat === 'number' ? data.lat : undefined,
+    lng: typeof data.lng === 'number' ? data.lng : undefined,
     tags: Array.isArray(data.tags) ? data.tags : [],
     applicationUrl: data.applicationUrl,
     verified: Boolean(data.verified),
@@ -139,16 +141,14 @@ export async function getAllOpportunities(): Promise<Opportunity[]> {
   return opportunities.filter(isOpportunity);
 }
 
-// Saved opportunities (app/saved): look up which opportunity ids this user
-// has saved via the savedOpportunities collection, then fetch each
-// opportunity doc individually. See useSavedOpportunity.ts and the writeup
-// on why savedOpportunities is a top-level collection rather than a
-// subcollection under the user doc.
+// Saved opportunities (app/saved): users/{uid}/savedOpportunities is a
+// subcollection, so this is just "list everything under my own path" — no
+// `where` filter needed, the path itself already scopes it to this user.
+// The doc id IS the opportunityId (see useSavedOpportunity.ts), so no
+// separate field lookup is needed to know what to fetch next.
 export async function getSavedOpportunities(uid: string): Promise<Opportunity[]> {
-  const saveSnapshot = await getDocs(query(collection(db, 'savedOpportunities'), where('uid', '==', uid)));
-  const opportunityIds = saveSnapshot.docs
-    .map((docSnap) => docSnap.data().opportunityId as string | undefined)
-    .filter((id): id is string => Boolean(id));
+  const saveSnapshot = await getDocs(collection(db, 'users', uid, 'savedOpportunities'));
+  const opportunityIds = saveSnapshot.docs.map((docSnap) => docSnap.id);
 
   const opportunityDocs = await Promise.all(
     opportunityIds.map((opportunityId) => getDoc(doc(db, 'opportunities', opportunityId)))

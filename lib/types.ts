@@ -42,11 +42,23 @@ export type Opportunity = {
   description: string;
   deadline?: number;
   location?: string;
+  /** Set only when `location` came from a selected Places suggestion rather
+   * than free text (e.g. "Online") — see AddressAutocompleteInput. */
+  lat?: number;
+  lng?: number;
   tags: string[];
   applicationUrl?: string;
   verified: boolean;
   featured?: boolean;
   createdAt: number;
+};
+
+export type SavedOpportunity = {
+  opportunityId: string;
+  createdAt: number;
+  address?: string;
+  lat?: number;
+  lng?: number;
 };
 
 export type JournalEntry = {

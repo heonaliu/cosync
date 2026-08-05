@@ -3,6 +3,7 @@
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useState } from 'react';
 
+import { AddressAutocompleteInput } from '@/components/features/AddressAutocompleteInput';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -33,6 +34,8 @@ type FormState = {
   description: string;
   deadline: string;
   location: string;
+  lat: number | null;
+  lng: number | null;
   applicationUrl: string;
 };
 
@@ -42,6 +45,8 @@ const EMPTY_FORM: FormState = {
   description: '',
   deadline: '',
   location: '',
+  lat: null,
+  lng: null,
   applicationUrl: '',
 };
 
@@ -85,6 +90,10 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
       };
       if (form.deadline) payload.deadline = new Date(form.deadline);
       if (form.location.trim()) payload.location = form.location.trim();
+      if (form.lat !== null && form.lng !== null) {
+        payload.lat = form.lat;
+        payload.lng = form.lng;
+      }
       if (form.applicationUrl.trim()) payload.applicationUrl = form.applicationUrl.trim();
 
       await addDoc(collection(db, 'opportunities'), payload);
@@ -181,11 +190,18 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
             <label htmlFor="opportunity-location" className="text-sm text-ink">
               Location <span className="text-sand">(optional)</span>
             </label>
-            <Input
+            <AddressAutocompleteInput
               id="opportunity-location"
-              placeholder="Online, or a city"
-              value={form.location}
-              onChange={(event) => updateField('location', event.target.value)}
+              placeholder="Online, or start typing an address"
+              defaultValue={form.location}
+              onChange={(value) => {
+                // Free typing invalidates any previously-selected coordinates
+                // — only a fresh pick from the dropdown sets them again.
+                setForm((previous) => ({ ...previous, location: value, lat: null, lng: null }));
+              }}
+              onAddressSelected={({ address, lat, lng }) => {
+                setForm((previous) => ({ ...previous, location: address, lat, lng }));
+              }}
             />
           </div>
 

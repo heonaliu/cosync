@@ -6,9 +6,10 @@ import { useState } from 'react';
 import { ProjectCard } from '@/components/features/ProjectCard';
 import { Button } from '@/components/ui/button';
 import { PillToggle } from '@/components/ui/PillToggle';
+import { PROJECT_CATEGORY_TAGS } from '@/lib/tags';
 import type { ProjectStage, ProjectWithStats } from '@/lib/types';
 
-const CATEGORIES = ['All', 'Hardware', 'Software', 'AI/ML', 'Robotics', 'Music', 'Writing'] as const;
+const CATEGORIES = ['All', ...PROJECT_CATEGORY_TAGS] as const;
 
 // The filter pill says "AI/ML" but a project's own tags array just says
 // "AI" (see the ArtBot card) — this maps each filter label to the tag

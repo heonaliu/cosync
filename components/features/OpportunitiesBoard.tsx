@@ -56,6 +56,10 @@ export function OpportunitiesBoard() {
     };
   }, [reloadToken]);
 
+  function handleDeleted(opportunityId: string): void {
+    setOpportunities((previous) => previous?.filter((item) => item.id !== opportunityId) ?? previous);
+  }
+
   const all = opportunities ?? [];
 
   // The featured opportunity is a fixed spotlight, not part of the
@@ -91,7 +95,7 @@ export function OpportunitiesBoard() {
       {loadError && <p className="text-sm text-sand">{loadError}</p>}
       {!opportunities && !loadError && <p className="text-sm text-sand">Loading opportunities…</p>}
 
-      {featured && <FeaturedOpportunityCard opportunity={featured} />}
+      {featured && <FeaturedOpportunityCard opportunity={featured} onDeleted={handleDeleted} />}
 
       {opportunities && rest.length === 0 && (
         <p className="text-sm text-oak">
@@ -102,7 +106,11 @@ export function OpportunitiesBoard() {
       {rest.length > 0 && (
         <div className="flex flex-col gap-4">
           {rest.map((opportunity) => (
-            <OpportunityListingCard key={opportunity.id} opportunity={opportunity} />
+            <OpportunityListingCard
+              key={opportunity.id}
+              opportunity={opportunity}
+              onDeleted={handleDeleted}
+            />
           ))}
         </div>
       )}

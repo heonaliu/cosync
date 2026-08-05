@@ -41,10 +41,19 @@ export function SavedOpportunities() {
     );
   }
 
+  function handleRemoved(opportunityId: string): void {
+    setOpportunities((previous) => previous?.filter((item) => item.id !== opportunityId) ?? previous);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {opportunities.map((opportunity) => (
-        <OpportunityListingCard key={opportunity.id} opportunity={opportunity} />
+        <OpportunityListingCard
+          key={opportunity.id}
+          opportunity={opportunity}
+          onDeleted={handleRemoved}
+          onUnsaved={handleRemoved}
+        />
       ))}
     </div>
   );
