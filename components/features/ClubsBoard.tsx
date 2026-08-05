@@ -28,9 +28,15 @@ function summarizeActivity(discussions: Discussion[]): {
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const recentDiscussionCount = discussions.filter((d) => d.createdAt >= weekAgo).length;
   const lastDiscussionAt = discussions[0]?.createdAt;
-  const upcomingEvent = discussions.find(
-    (d) => d.kind === 'event' && d.eventDate !== undefined && d.eventDate >= Date.now()
-  );
+  // Soonest upcoming by eventDate, not most-recently-posted — see the same
+  // fix in ClubDetail.tsx for why .find() on createdAt-ordered discussions
+  // was picking the wrong one.
+  const upcomingEvent = discussions
+    .filter(
+      (d): d is Discussion & { eventDate: number } =>
+        d.kind === 'event' && d.eventDate !== undefined && d.eventDate >= Date.now()
+    )
+    .sort((a, b) => a.eventDate - b.eventDate)[0];
   return { recentDiscussionCount, lastDiscussionAt, upcomingEvent };
 }
 

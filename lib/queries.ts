@@ -277,10 +277,13 @@ async function discussionFromDoc(
     kind: (data.kind as DiscussionKind) ?? 'discussion',
     eventDate: data.eventDate ? toMillis(data.eventDate) : undefined,
     eventLocation: data.eventLocation,
+    eventHost: data.eventHost,
+    recurring: Boolean(data.recurring),
     goingCount: typeof data.goingCount === 'number' ? data.goingCount : undefined,
     interestedCount: typeof data.interestedCount === 'number' ? data.interestedCount : undefined,
     replyCount: data.replyCount ?? 0,
     cheerCount: data.cheerCount ?? 0,
+    cheeredByUids: Array.isArray(data.cheeredByUids) ? data.cheeredByUids : [],
     createdAt: toMillis(data.createdAt),
   } satisfies Discussion;
 }

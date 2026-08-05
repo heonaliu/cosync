@@ -1,7 +1,7 @@
 import { IconCalendarEvent } from '@tabler/icons-react';
 
 import { Button } from '@/components/ui/button';
-import { formatEventDate } from '@/lib/time';
+import { formatEventDetailLine } from '@/lib/time';
 import type { Discussion } from '@/lib/types';
 
 type ClubEventCardProps = {
@@ -13,13 +13,7 @@ type ClubEventCardProps = {
 // "Upcoming event" (member, with RSVP buttons) vs "Next cohort starts"
 // (non-member, informational only) from the screenshots.
 export function ClubEventCard({ event, isMember }: ClubEventCardProps) {
-  const detailLine = [
-    event.eventDate ? formatEventDate(event.eventDate) : null,
-    event.eventLocation,
-    event.content,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const detailLine = formatEventDetailLine(event);
 
   return (
     <div className="flex flex-col gap-3 rounded-card bg-amber p-5">

@@ -36,3 +36,33 @@ export function formatEventDate(ms: number): string {
     minute: '2-digit',
   });
 }
+
+// Shared by ClubEventCard (the amber spotlight card) and DiscussionCard
+// (the same event shown as a regular list entry) so the date/room/host line
+// reads identically in both places.
+export function formatEventDetailLine(params: {
+  eventDate?: number;
+  eventLocation?: string;
+  eventHost?: string;
+  recurring?: boolean;
+}): string {
+  const parts: string[] = [];
+
+  if (params.eventDate !== undefined) {
+    if (params.recurring) {
+      const weekday = new Date(params.eventDate).toLocaleDateString('en-US', { weekday: 'long' });
+      const time = new Date(params.eventDate).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      parts.push(`Every ${weekday} at ${time}`);
+    } else {
+      parts.push(formatEventDate(params.eventDate));
+    }
+  }
+
+  if (params.eventLocation) parts.push(params.eventLocation);
+  if (params.eventHost) parts.push(`${params.eventHost} hosting`);
+
+  return parts.join(' · ');
+}

@@ -87,10 +87,14 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
   }
 
   const isMember = Boolean(user && club.memberUids.includes(user.uid));
-  const upcomingEvent = discussions.find(
-    (discussion) =>
-      discussion.kind === 'event' && discussion.eventDate !== undefined && discussion.eventDate >= Date.now()
-  );
+  // Soonest upcoming event by eventDate, not most-recently-posted — those
+  // aren't the same thing, since `discussions` is ordered by createdAt.
+  const upcomingEvent = discussions
+    .filter(
+      (discussion): discussion is Discussion & { eventDate: number } =>
+        discussion.kind === 'event' && discussion.eventDate !== undefined && discussion.eventDate >= Date.now()
+    )
+    .sort((a, b) => a.eventDate - b.eventDate)[0];
 
   return (
     <div className="flex flex-col gap-6">

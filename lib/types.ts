@@ -111,6 +111,12 @@ export type Discussion = {
   kind: DiscussionKind;
   eventDate?: number;
   eventLocation?: string;
+  /** Free-text name of who's running the event — the composer's "Hosted by"
+   * field defaults to the club's advisorName but is editable. */
+  eventHost?: string;
+  /** Weekly-recurring vs one-off — changes how ClubEventCard formats the
+   * date line ("Every Thursday at 3pm" vs a specific date). */
+  recurring?: boolean;
   /** RSVP counts for kind: 'event' discussions. Not in CLAUDE.md's base
    * discussions schema — added because the Going/Interested buttons on the
    * event card need real numbers to show. Display-only for now; the
@@ -119,6 +125,9 @@ export type Discussion = {
   interestedCount?: number;
   replyCount: number;
   cheerCount: number;
+  /** Uids who've cheered — lets the Cheer button toggle instead of just
+   * incrementing forever, and shows each viewer their own cheered state. */
+  cheeredByUids?: string[];
   createdAt: number;
 };
 

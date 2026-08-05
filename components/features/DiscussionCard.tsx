@@ -1,10 +1,14 @@
+'use client';
+
 import { IconHandStop, IconMessageCircle, IconShieldCheck } from '@tabler/icons-react';
+import { toast } from 'sonner';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
-import { formatRelativeTime } from '@/lib/time';
+import { formatEventDetailLine, formatRelativeTime } from '@/lib/time';
 import type { Discussion } from '@/lib/types';
+import { useCheerDiscussion } from '@/lib/useCheerDiscussion';
 import { cn } from '@/lib/utils';
 
 type DiscussionCardProps = {
@@ -12,9 +16,24 @@ type DiscussionCardProps = {
   /** Renders at reduced opacity — used for the non-member preview state,
    * where discussions are visible but signal "you're seeing a preview." */
   muted?: boolean;
+  /** Gates the Cheer button — only signed-in club members can cheer, not
+   * just anyone who can see the (public) preview. */
+  isMember?: boolean;
 };
 
-export function DiscussionCard({ discussion, muted = false }: DiscussionCardProps) {
+export function DiscussionCard({ discussion, muted = false, isMember = false }: DiscussionCardProps) {
+  const { hasCheered, cheerCount, toggleCheer } = useCheerDiscussion(discussion);
+  const bodyText = discussion.kind === 'event' ? formatEventDetailLine(discussion) : discussion.content;
+
+  async function handleCheerClick(): Promise<void> {
+    try {
+      await toggleCheer();
+    } catch (error) {
+      console.error('Failed to cheer:', error);
+      toast.error('Could not send that cheer. Try again.');
+    }
+  }
+
   return (
     <Card className={cn('flex flex-col gap-3', muted && 'opacity-85')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -36,7 +55,7 @@ export function DiscussionCard({ discussion, muted = false }: DiscussionCardProp
 
       <div className="flex flex-col gap-1">
         {discussion.title && <h3 className="text-sm font-medium text-ink">{discussion.title}</h3>}
-        <p className="text-sm text-oak">{discussion.content}</p>
+        {bodyText && <p className="text-sm text-oak">{bodyText}</p>}
       </div>
 
       <div className="flex items-center gap-4 text-sm text-oak">
@@ -44,10 +63,25 @@ export function DiscussionCard({ discussion, muted = false }: DiscussionCardProp
           <IconMessageCircle className="size-4" aria-hidden="true" />
           {discussion.replyCount} repl{discussion.replyCount === 1 ? 'y' : 'ies'}
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          <IconHandStop className="size-4" aria-hidden="true" />
-          {discussion.cheerCount} cheers
-        </span>
+        {isMember ? (
+          <button
+            type="button"
+            aria-pressed={hasCheered}
+            onClick={() => void handleCheerClick()}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-pill transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+              hasCheered ? 'font-medium text-deep-fresh' : 'text-oak hover:text-ink'
+            )}
+          >
+            <IconHandStop className="size-4" aria-hidden="true" />
+            {cheerCount} cheer{cheerCount === 1 ? '' : 's'}
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <IconHandStop className="size-4" aria-hidden="true" />
+            {cheerCount} cheers
+          </span>
+        )}
       </div>
     </Card>
   );

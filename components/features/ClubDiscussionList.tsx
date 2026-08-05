@@ -20,7 +20,7 @@ export function ClubDiscussionList({ discussions, isMember, onJoin, isJoining }:
         <p className="text-sm text-oak">No discussions yet — be the first to post.</p>
       ) : (
         discussions.map((discussion) => (
-          <DiscussionCard key={discussion.id} discussion={discussion} muted={!isMember} />
+          <DiscussionCard key={discussion.id} discussion={discussion} muted={!isMember} isMember={isMember} />
         ))
       )}
 
