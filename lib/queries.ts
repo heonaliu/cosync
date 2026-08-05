@@ -10,6 +10,7 @@ import {
   query,
   where,
   type DocumentData,
+  type DocumentSnapshot,
   type QueryDocumentSnapshot,
   type Timestamp,
 } from 'firebase/firestore';
@@ -87,32 +88,73 @@ export async function getDiscoverProjects(): Promise<ProjectWithStats[]> {
   );
 }
 
+// Accepts a plain DocumentSnapshot (not just QueryDocumentSnapshot) so it
+// also works for one-off getDoc() lookups — used by getSavedOpportunities,
+// where each saved opportunity is fetched individually by id rather than
+// coming back as query results. Returns null if the doc doesn't exist
+// (e.g. a saved opportunity that was later deleted).
+async function opportunityFromDoc(docSnap: DocumentSnapshot<DocumentData>): Promise<Opportunity | null> {
+  if (!docSnap.exists()) return null;
+  const data = docSnap.data();
+  const posterUid: string = data.posterUid ?? '';
+  const poster = await getUserInfo(posterUid);
+  return {
+    id: docSnap.id,
+    posterUid,
+    posterName: poster.name,
+    posterVerified: poster.verified,
+    type: data.type ?? 'program',
+    title: data.title ?? 'Untitled opportunity',
+    description: data.description ?? '',
+    deadline: data.deadline ? toMillis(data.deadline) : undefined,
+    location: data.location,
+    tags: Array.isArray(data.tags) ? data.tags : [],
+    applicationUrl: data.applicationUrl,
+    verified: Boolean(data.verified),
+    featured: Boolean(data.featured),
+    createdAt: toMillis(data.createdAt),
+  } satisfies Opportunity;
+}
+
+function isOpportunity(value: Opportunity | null): value is Opportunity {
+  return value !== null;
+}
+
 export async function getOpenOpportunities(count: number): Promise<Opportunity[]> {
   const snapshot = await getDocs(
     query(collection(db, 'opportunities'), orderBy('createdAt', 'desc'), limit(count))
   );
-  return Promise.all(
-    snapshot.docs.map(async (docSnap) => {
-      const data = docSnap.data();
-      const posterUid: string = data.posterUid ?? '';
-      const poster = await getUserInfo(posterUid);
-      return {
-        id: docSnap.id,
-        posterUid,
-        posterName: poster.name,
-        posterVerified: poster.verified,
-        type: data.type ?? 'program',
-        title: data.title ?? 'Untitled opportunity',
-        description: data.description ?? '',
-        deadline: data.deadline ? toMillis(data.deadline) : undefined,
-        location: data.location,
-        tags: Array.isArray(data.tags) ? data.tags : [],
-        applicationUrl: data.applicationUrl,
-        verified: Boolean(data.verified),
-        createdAt: toMillis(data.createdAt),
-      } satisfies Opportunity;
-    })
+  const opportunities = await Promise.all(snapshot.docs.map(opportunityFromDoc));
+  return opportunities.filter(isOpportunity);
+}
+
+// Opportunities directory (app/opportunities): every opportunity, no cap.
+// Deliberately not ordered by deadline here — Firestore's orderBy silently
+// drops documents missing the ordered field, which would hide any
+// no-deadline opportunity instead of just sorting it last. The
+// deadline-ascending-nulls-last sort happens in memory in OpportunitiesBoard.
+export async function getAllOpportunities(): Promise<Opportunity[]> {
+  const snapshot = await getDocs(query(collection(db, 'opportunities'), orderBy('createdAt', 'desc')));
+  const opportunities = await Promise.all(snapshot.docs.map(opportunityFromDoc));
+  return opportunities.filter(isOpportunity);
+}
+
+// Saved opportunities (app/saved): look up which opportunity ids this user
+// has saved via the savedOpportunities collection, then fetch each
+// opportunity doc individually. See useSavedOpportunity.ts and the writeup
+// on why savedOpportunities is a top-level collection rather than a
+// subcollection under the user doc.
+export async function getSavedOpportunities(uid: string): Promise<Opportunity[]> {
+  const saveSnapshot = await getDocs(query(collection(db, 'savedOpportunities'), where('uid', '==', uid)));
+  const opportunityIds = saveSnapshot.docs
+    .map((docSnap) => docSnap.data().opportunityId as string | undefined)
+    .filter((id): id is string => Boolean(id));
+
+  const opportunityDocs = await Promise.all(
+    opportunityIds.map((opportunityId) => getDoc(doc(db, 'opportunities', opportunityId)))
   );
+  const opportunities = await Promise.all(opportunityDocs.map(opportunityFromDoc));
+  return opportunities.filter(isOpportunity);
 }
 
 // collectionGroup reaches every project's journalEntries subcollection in one

@@ -1,12 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { GoogleSignInButton } from '@/components/features/GoogleSignInButton';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Avatar } from '@/components/ui/Avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/Input';
+import { signOutUser } from '@/lib/auth';
 import { useAuth } from '@/lib/useAuth';
 import { cn } from '@/lib/utils';
 
@@ -26,8 +34,14 @@ const APP_LINKS = [
 export function Nav() {
   const { user, status } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
   const logoHref = status === 'authed' ? '/home' : '/';
+
+  async function handleLogout(): Promise<void> {
+    await signOutUser();
+    router.push('/');
+  }
 
   return (
     <nav className={cn('w-full', status === 'authed' && 'border-b border-olive')}>
@@ -86,7 +100,27 @@ export function Nav() {
               aria-label="Search CoSync"
               className="hidden w-48 md:block"
             />
-            <Avatar name={user.displayName ?? user.email ?? 'You'} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Account menu"
+                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+                >
+                  <Avatar name={user.displayName ?? user.email ?? 'You'} decorative />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={`/profile/${user.uid}`}>Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/saved">Saved</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => void handleLogout()}>Log out</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ) : status === 'anon' ? (
           <GoogleSignInButton size="lg">Sign in</GoogleSignInButton>

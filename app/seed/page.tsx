@@ -1,12 +1,64 @@
 'use client';
 
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/useAuth';
-import type { ProjectStage } from '@/lib/types';
+import type { OpportunityType, ProjectStage } from '@/lib/types';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+type DummyOpportunity = {
+  type: OpportunityType;
+  title: string;
+  description: string;
+  location?: string;
+  deadlineDaysFromNow?: number;
+  featured?: boolean;
+};
+
+const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
+  {
+    type: 'program',
+    title: 'Summer Innovation Fellowship',
+    description:
+      'A 6-week fellowship for student makers to build a project with mentorship and a small stipend.',
+    location: 'Remote',
+    deadlineDaysFromNow: 30,
+    featured: true,
+  },
+  {
+    type: 'hackathon',
+    title: 'MIT Hackathon',
+    description: '24-hour build weekend for high schoolers. Teams of up to 4.',
+    location: 'Cambridge, MA',
+    deadlineDaysFromNow: 7,
+  },
+  {
+    type: 'research',
+    title: 'Summer NLP research assistant',
+    description:
+      'Evaluate multilingual sentiment models. 6 hours/week. Open to juniors and seniors with Python experience.',
+    location: 'Remote',
+    deadlineDaysFromNow: 14,
+  },
+  {
+    type: 'competition',
+    title: 'Regional Robotics Challenge',
+    description: 'Build and compete with an autonomous robot in a regional qualifier round.',
+    location: 'Seattle, WA',
+    deadlineDaysFromNow: 45,
+  },
+  {
+    type: 'mentorship',
+    title: '1:1 mentorship in embedded systems',
+    description: 'Weekly check-ins with a working firmware engineer. Open to any skill level.',
+    location: 'Remote',
+    // No deadline on purpose — exercises the nulls-last sort on the Opportunities page.
+  },
+];
 
 type DummyProject = {
   title: string;
@@ -119,13 +171,77 @@ export default function SeedPage() {
     setIsSeeding(false);
   }
 
+  async function handleSeedOpportunities(): Promise<void> {
+    if (!user) return;
+    setIsSeeding(true);
+    setLog([]);
+
+    try {
+      // The opportunities create rule requires the poster's own user doc to
+      // have role 'educator' or 'admin'. There's no onboarding flow yet, so
+      // this test account has no user doc at all — create a minimal one
+      // (merge: true, so it won't clobber a real profile if one exists).
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          displayName: user.displayName ?? 'Demo educator',
+          handle: 'demo-educator',
+          role: 'educator',
+          verified: true,
+          joinedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      setLog((prev) => [...prev, `Set role: educator on users/${user.uid}`]);
+    } catch (error) {
+      setLog((prev) => [...prev, `Failed to set user role: ${String(error)}`]);
+      setIsSeeding(false);
+      return;
+    }
+
+    for (const item of DUMMY_OPPORTUNITIES) {
+      try {
+        const payload: Record<string, unknown> = {
+          posterUid: user.uid,
+          type: item.type,
+          title: item.title,
+          description: item.description,
+          tags: [],
+          verified: false,
+          featured: Boolean(item.featured),
+          createdAt: serverTimestamp(),
+        };
+        if (item.location) payload.location = item.location;
+        if (item.deadlineDaysFromNow !== undefined) {
+          payload.deadline = new Date(Date.now() + item.deadlineDaysFromNow * DAY_MS);
+        }
+
+        const ref = await addDoc(collection(db, 'opportunities'), payload);
+        setLog((prev) => [...prev, `Created ${item.title} (${ref.id})`]);
+      } catch (error) {
+        setLog((prev) => [...prev, `Failed ${item.title}: ${String(error)}`]);
+      }
+    }
+
+    setIsSeeding(false);
+  }
+
   return (
     <div className="flex flex-col gap-4 p-8">
-      <h1 className="text-lg font-medium text-ink">Seed dummy projects</h1>
+      <h1 className="text-lg font-medium text-ink">Seed dummy data</h1>
       {status !== 'authed' && <p className="text-sm text-oak">Sign in first, then reload this page.</p>}
-      <Button onClick={() => void handleSeed()} disabled={!user || isSeeding} className="self-start">
-        {isSeeding ? 'Seeding…' : 'Run seed'}
-      </Button>
+      <div className="flex gap-3">
+        <Button onClick={() => void handleSeed()} disabled={!user || isSeeding} className="self-start">
+          {isSeeding ? 'Seeding…' : 'Run project seed'}
+        </Button>
+        <Button
+          onClick={() => void handleSeedOpportunities()}
+          disabled={!user || isSeeding}
+          className="self-start"
+        >
+          {isSeeding ? 'Seeding…' : 'Run opportunity seed'}
+        </Button>
+      </div>
       <pre className="text-xs text-oak">{log.join('\n')}</pre>
     </div>
   );

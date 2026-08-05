@@ -45,6 +45,7 @@ export type Opportunity = {
   tags: string[];
   applicationUrl?: string;
   verified: boolean;
+  featured?: boolean;
   createdAt: number;
 };
 
