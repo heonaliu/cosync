@@ -129,3 +129,65 @@
     @apply font-sans;
   }
 }
+
+/* Google Places Autocomplete (.pac-*) is injected directly into <body> by
+ * Google's own script — it's not part of our component tree, so Tailwind
+ * classes can never reach it. These are the token hex values from
+ * tailwind.config.ts, duplicated here only because this is the one place
+ * in the app that has to write plain CSS against markup we don't render.
+ *
+ * !important is used deliberately, against the project's usual rule against
+ * it: Google's stylesheet is injected at runtime (after our own globals.css
+ * has already loaded), so on a tied specificity our rules would lose to
+ * theirs on source order alone. This is the standard, documented way to
+ * theme this specific widget.
+ */
+.pac-container {
+  font-family: var(--font-sans), sans-serif !important;
+  margin-top: 4px !important;
+  border: 1px solid #d9cbb5 !important; /* olive */
+  border-radius: 14px !important; /* rounded-card */
+  box-shadow: 0 4px 16px rgb(45 29 14 / 0.12) !important; /* ink, low opacity */
+  overflow: hidden !important;
+}
+
+.pac-item {
+  padding: 8px 12px !important;
+  border-top: 1px solid #d9cbb5 !important; /* olive */
+  font-family: var(--font-sans), sans-serif !important;
+  font-size: 14px !important;
+  color: #2d1d0e !important; /* ink */
+  cursor: pointer !important;
+}
+
+.pac-item:first-child {
+  border-top: none !important;
+}
+
+.pac-item:hover,
+.pac-item-selected {
+  background-color: #faf3ea !important; /* cream */
+}
+
+/* The default sprite-image pin icon can't be recolored to match the
+ * palette (it's a fixed background-image, not a font/SVG icon), so it's
+ * hidden in favor of a plain text row — consistent with how our own
+ * DropdownMenuItem has no leading icons either. */
+.pac-icon {
+  display: none !important;
+}
+
+.pac-item-query {
+  font-weight: 500 !important;
+  color: #2d1d0e !important; /* ink */
+}
+
+.pac-matched {
+  font-weight: 500 !important;
+  color: #227a4a !important; /* deep-fresh */
+}
+
+/* .pac-container has a required "powered by Google" attribution
+ * (.pac-logo / a ::after on the container) — Google's Maps Platform terms
+ * require this stay visible, so it's deliberately left unstyled here rather
+ * than hidden. */

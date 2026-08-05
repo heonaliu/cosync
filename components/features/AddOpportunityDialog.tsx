@@ -117,13 +117,36 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
         setOpen(nextOpen);
         if (!nextOpen) setError(null);
       }}
+      // modal={false} turns off Radix's focus-trap (FocusScope), not just
+      // the outside-click-closes behavior the onInteractOutside guard below
+      // already covers. The trap alone was enough to swallow clicks on the
+      // Places dropdown even after the dialog stopped closing — it redirects
+      // focus back into the dialog on any pointer interaction with an
+      // element outside its DOM subtree, which cuts off Google's own
+      // click-to-select handler on a suggestion mid-sequence.
+      modal={false}
     >
       <DialogTrigger asChild>
         <Button size="lg" className="self-start">
           + Add opportunity
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onInteractOutside={(event) => {
+          // The Places dropdown is appended straight to <body> by Google's
+          // own script, outside this dialog's DOM subtree — so Radix's
+          // "outside click" detection sees a click on a suggestion as
+          // outside the dialog and swallows it before Google's own
+          // click-to-select handler runs. Telling Radix "this one doesn't
+          // count" is what lets clicking a suggestion actually work (arrow
+          // keys + Enter bypassed this entirely, which is why only clicking
+          // was broken).
+          if ((event.target as HTMLElement).closest('.pac-container')) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Add an opportunity</DialogTitle>
           <DialogDescription>
