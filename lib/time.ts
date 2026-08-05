@@ -12,6 +12,16 @@ export function formatRelativeTime(ms: number): string {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
+// Oxford-comma joiner for a project header's "who's on this" line — e.g.
+// ["Heona (owner)", "Alicia"] -> "Heona (owner) and Alicia", or
+// ["Sam", "Jai", "Maya"] -> "Sam, Jai, and Maya".
+export function formatNameList(names: string[]): string {
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+}
+
 export function formatDeadline(ms: number): string {
   return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }

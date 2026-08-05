@@ -6,7 +6,16 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/useAuth';
-import type { ClubAccess, ClubColorName, ClubIconName, ClubScope, DiscussionKind, OpportunityType, ProjectStage } from '@/lib/types';
+import type {
+  ClubAccess,
+  ClubColorName,
+  ClubIconName,
+  ClubScope,
+  DiscussionKind,
+  OpportunityType,
+  ProjectStage,
+  ProjectVisibility,
+} from '@/lib/types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -60,66 +69,172 @@ const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
   },
 ];
 
+type DummyJournalEntry = {
+  content: string;
+  daysAgo: number;
+  /** Authored by the first extraMemberUid instead of the seeding account —
+   * lets a single-account seed still produce a journal with more than one
+   * author, which is what the "hide buttons on the owner's own view
+   * regardless of who wrote the entry" behavior needs to actually exercise. */
+  byExtraMember?: boolean;
+};
+
 type DummyProject = {
   title: string;
+  pitch: string;
   description: string;
   tags: string[];
   stage: ProjectStage;
+  visibility: ProjectVisibility;
   extraMemberUids: string[];
   lookingFor?: { role: string; description: string };
-  journalEntryCount: number;
+  links?: { label: string; url: string }[];
+  journalEntries: DummyJournalEntry[];
+  /** false = reassign ownerUid to a fake uid right after creation, so this
+   * project renders as someone else's from the seeding account's point of
+   * view — the create rule requires ownerUid == the creator, so there's no
+   * way to seed a foreign-owned project directly; this does it in a second
+   * write while the seeder is still (briefly) the real owner and allowed to
+   * make that change. Same trick DUMMY_CLUBS' isMine uses for memberUids,
+   * extended with the ownerUid reassignment projects also need. */
+  isMine: boolean;
+  /** Only meaningful when isMine is false. true keeps the seeding account in
+   * memberUids after the ownerUid reassignment (a "collaborator" test
+   * project); false/omitted excludes it entirely (a "viewer" test project). */
+  keepSeederAsCollaborator?: boolean;
+  /** Only meaningful when isMine is false — the fake uid ownerUid gets
+   * reassigned to. */
+  fakeOwnerUid?: string;
+};
+
+const FAKE_UID = {
+  alicia: 'seed-member-alicia',
+  jai: 'seed-member-jai',
+  maya: 'seed-member-maya',
+  sam: 'seed-owner-sam',
+  priya: 'seed-owner-priya',
 };
 
 const DUMMY_PROJECTS: DummyProject[] = [
   {
     title: 'TrashTracker',
-    description: 'Pings your phone when the trash bin is full.',
-    tags: ['Hardware'],
+    pitch: 'Pings your phone when the trash bin is full.',
+    description:
+      'A little device that tells you when the trash goes out — ultrasonic sensor on an ESP32 that pings your phone when the bin hits 80%.',
+    tags: ['STEM', 'Hardware'],
     stage: 'prototyping',
-    extraMemberUids: ['seed-member-1'],
-    journalEntryCount: 2,
+    visibility: 'public',
+    extraMemberUids: [FAKE_UID.alicia],
+    lookingFor: { role: 'A CAD collaborator', description: 'Fusion 360 preferred' },
+    links: [
+      { label: 'Repository', url: 'https://github.com/example/trashtracker' },
+      { label: 'Bill of materials', url: 'https://example.com/trashtracker-bom' },
+    ],
+    journalEntries: [
+      {
+        content:
+          'Got the sensor calibrated after way too much debugging. Reflection off the trash bag was throwing every reading off — averaging 5 samples per cycle stabilized it. Next: enclosure v2.',
+        daysAgo: 2,
+      },
+      {
+        content: "First working prototype! Buzzes when the bin gets over 80%. Enclosure v1 is rough but it works.",
+        daysAgo: 5,
+        byExtraMember: true,
+      },
+    ],
+    isMine: true,
   },
   {
-    title: 'SoundLab',
-    description: 'Arduino MIDI synth built from scratch.',
-    tags: ['Music'],
-    stage: 'shipping',
+    title: 'CoSync',
+    pitch: 'A home for young makers to collaborate and share.',
+    description:
+      "A home for K-12 makers to post projects, journal their builds in public, and discover clubs and opportunities in one place.",
+    tags: ['AI'],
+    stage: 'idea',
+    visibility: 'public',
     extraMemberUids: [],
-    journalEntryCount: 1,
+    journalEntries: [
+      {
+        content: 'First wireframes of the discover page are done — going for warm, cream colors and rounded cards.',
+        daysAgo: 1,
+      },
+    ],
+    isMine: true,
+  },
+  {
+    title: 'Nametag PCB',
+    pitch: 'Small PCB run with QR and optional NFC.',
+    description: 'A small badge PCB run with a QR code and an optional NFC chip, for club meetups and hackathons.',
+    tags: ['Software'],
+    stage: 'idea',
+    visibility: 'draft',
+    extraMemberUids: [],
+    journalEntries: [],
+    isMine: true,
+  },
+  {
+    title: 'Bear-Magotchi',
+    pitch: 'Bear-shaped tamagotchi PCB with firmware.',
+    description: 'A bear-shaped tamagotchi PCB with custom firmware — feed it, play with it, don’t let it die.',
+    tags: ['Hardware'],
+    stage: 'shipping',
+    visibility: 'public',
+    extraMemberUids: [],
+    journalEntries: [
+      {
+        content: 'Enclosure v3 is on the way from JLCPCB — fixed the button alignment issue from v2.',
+        daysAgo: 6,
+      },
+    ],
+    isMine: true,
   },
   {
     title: 'RoverBot',
-    description: 'Tiny robot mapping rooms with an ultrasonic sensor. Building SLAM from scratch.',
-    tags: ['Robotics', 'Hardware'],
+    pitch: 'Tiny robot mapping rooms with SLAM.',
+    description:
+      'A tiny wheeled robot that maps a room with a mounted ultrasonic sensor. Building the SLAM algorithm from scratch.',
+    tags: ['STEM', 'Robotics'],
     stage: 'prototyping',
-    extraMemberUids: ['seed-member-1', 'seed-member-2'],
-    lookingFor: { role: 'firmware help', description: 'Someone comfortable with embedded C.' },
-    journalEntryCount: 3,
-  },
-  {
-    title: 'ArtBot',
-    description: 'Generative art from local weather data.',
-    tags: ['AI'],
-    stage: 'idea',
-    extraMemberUids: [],
-    journalEntryCount: 0,
+    visibility: 'public',
+    extraMemberUids: [FAKE_UID.jai, FAKE_UID.maya],
+    lookingFor: { role: 'Firmware collaborator', description: 'C++ or Rust, embedded experience' },
+    links: [
+      { label: 'Repository', url: 'https://github.com/example/roverbot' },
+      { label: 'Demo video', url: 'https://example.com/roverbot-demo' },
+    ],
+    journalEntries: [
+      {
+        content: 'Got the first SLAM pass running. Map is noisy but the shape of the room is recognizable. Working on smoothing the point cloud next.',
+        daysAgo: 1,
+        byExtraMember: true,
+      },
+      {
+        content: 'Chassis printed and mounted the motors. Wheel alignment is off by ~2 degrees but we’re keeping it — makes it look grumpy.',
+        daysAgo: 4,
+        byExtraMember: true,
+      },
+    ],
+    // Reassigned to Sam after creation, and the seeding account is NOT added
+    // to memberUids — this is the "viewer" test project (Piece 3).
+    isMine: false,
+    fakeOwnerUid: FAKE_UID.sam,
   },
   {
     title: 'Zine Machine',
-    description: 'Monthly zine collaborative for teen writers.',
+    pitch: 'Monthly zine collaborative for teen writers.',
+    description: 'A monthly zine collaborative for teen writers and illustrators — new issue drops the first of each month.',
     tags: ['Writing'],
     stage: 'shipping',
-    extraMemberUids: ['seed-member-1', 'seed-member-2', 'seed-member-3'],
-    lookingFor: { role: 'illustrators', description: 'Looking for a couple of artists to trade pages with writers.' },
-    journalEntryCount: 0,
-  },
-  {
-    title: 'NestBox',
-    description: 'Sensor-equipped bird box logging visits.',
-    tags: ['Bio', 'Hardware'],
-    stage: 'idea',
-    extraMemberUids: ['seed-member-1'],
-    journalEntryCount: 0,
+    visibility: 'public',
+    extraMemberUids: [],
+    lookingFor: { role: 'Illustrators', description: 'Looking for a couple of artists to trade pages with writers.' },
+    journalEntries: [],
+    // Reassigned to Priya after creation, but the seeding account STAYS in
+    // memberUids — this is the "collaborator" test project (Piece 2's
+    // implicit third render state).
+    isMine: false,
+    fakeOwnerUid: FAKE_UID.priya,
+    keepSeederAsCollaborator: true,
   },
 ];
 
@@ -317,32 +432,46 @@ export default function SeedPage() {
     for (const item of DUMMY_PROJECTS) {
       try {
         const payload: Record<string, unknown> = {
+          // The create rule requires ownerUid == the creator no matter what
+          // the project is meant to look like afterward — isMine: false
+          // projects get reassigned in a second write below, while the
+          // seeding account is still (briefly) the real, permitted owner.
           ownerUid: user.uid,
           title: item.title,
-          pitch: item.description,
+          pitch: item.pitch,
           description: item.description,
           tags: item.tags,
           stage: item.stage,
-          visibility: 'public',
+          visibility: item.visibility,
           memberUids: [user.uid, ...item.extraMemberUids],
           followerCount: 0,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
         if (item.lookingFor) payload.lookingFor = item.lookingFor;
+        if (item.links) payload.links = item.links;
 
         const projectRef = await addDoc(collection(db, 'projects'), payload);
         setLog((prev) => [...prev, `Created ${item.title} (${projectRef.id})`]);
 
-        for (let i = 0; i < item.journalEntryCount; i += 1) {
+        for (const entry of item.journalEntries) {
           await addDoc(collection(db, 'projects', projectRef.id, 'journalEntries'), {
-            authorUid: user.uid,
-            content: `Update #${i + 1} on ${item.title}.`,
-            mediaUrls: [],
+            authorUid: entry.byExtraMember ? item.extraMemberUids[0] : user.uid,
+            content: entry.content,
             cheerCount: 0,
             commentCount: 0,
-            createdAt: serverTimestamp(),
+            createdAt: new Date(Date.now() - entry.daysAgo * DAY_MS),
           });
+        }
+
+        if (!item.isMine && item.fakeOwnerUid) {
+          await updateDoc(doc(db, 'projects', projectRef.id), {
+            ownerUid: item.fakeOwnerUid,
+            memberUids: item.keepSeederAsCollaborator
+              ? [item.fakeOwnerUid, user.uid, ...item.extraMemberUids]
+              : [item.fakeOwnerUid, ...item.extraMemberUids],
+          });
+          setLog((prev) => [...prev, `Reassigned ${item.title} to ${item.fakeOwnerUid}`]);
         }
       } catch (error) {
         setLog((prev) => [...prev, `Failed ${item.title}: ${String(error)}`]);

@@ -23,6 +23,7 @@ import type {
   ClubScope,
   Discussion,
   DiscussionKind,
+  JoinRequest,
   JournalEntry,
   Opportunity,
   Project,
@@ -48,8 +49,10 @@ function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
     stage: data.stage ?? 'idea',
     visibility: data.visibility ?? 'public',
     lookingFor: data.lookingFor,
+    links: Array.isArray(data.links) ? data.links : undefined,
     memberUids: Array.isArray(data.memberUids) ? data.memberUids : [],
     followerCount: data.followerCount ?? 0,
+    followerUids: Array.isArray(data.followerUids) ? data.followerUids : [],
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
   };
@@ -299,6 +302,29 @@ export async function getClubDiscussions(clubId: string, club: Club): Promise<Di
   return Promise.all(snapshot.docs.map((docSnap) => discussionFromDoc(clubId, club, docSnap)));
 }
 
+async function journalEntryFromDoc(
+  projectId: string,
+  projectTitle: string,
+  docSnap: QueryDocumentSnapshot<DocumentData>
+): Promise<JournalEntry> {
+  const data = docSnap.data();
+  const authorUid: string = data.authorUid ?? '';
+  const author = await getUserInfo(authorUid);
+  return {
+    id: docSnap.id,
+    projectId,
+    projectTitle,
+    authorUid,
+    authorName: author.name,
+    content: data.content ?? '',
+    mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls : undefined,
+    cheerCount: data.cheerCount ?? 0,
+    cheeredByUids: Array.isArray(data.cheeredByUids) ? data.cheeredByUids : [],
+    commentCount: data.commentCount ?? 0,
+    createdAt: toMillis(data.createdAt),
+  } satisfies JournalEntry;
+}
+
 // collectionGroup reaches every project's journalEntries subcollection in one
 // query. Firestore will throw a "requires an index" error with a console
 // link the first time this runs against a real project — that's expected,
@@ -309,22 +335,106 @@ export async function getRecentJournalEntries(count: number): Promise<JournalEnt
   );
   return Promise.all(
     snapshot.docs.map(async (docSnap) => {
-      const data = docSnap.data();
       const projectRef = docSnap.ref.parent.parent;
       const projectSnap = projectRef ? await getDoc(projectRef) : null;
-      const authorUid: string = data.authorUid ?? '';
-      const author = await getUserInfo(authorUid);
-      return {
-        id: docSnap.id,
-        projectId: projectRef?.id ?? '',
-        projectTitle: (projectSnap?.data()?.title as string | undefined) ?? 'a project',
-        authorUid,
-        authorName: author.name,
-        content: data.content ?? '',
-        cheerCount: data.cheerCount ?? 0,
-        commentCount: data.commentCount ?? 0,
-        createdAt: toMillis(data.createdAt),
-      } satisfies JournalEntry;
+      const projectTitle = (projectSnap?.data()?.title as string | undefined) ?? 'a project';
+      return journalEntryFromDoc(projectRef?.id ?? '', projectTitle, docSnap);
     })
   );
+}
+
+// Owned vs contributing are two separate queries rather than one "any project
+// I'm involved with" query + client-side split — Firestore can filter
+// ownerUid == uid server-side, and array-contains for memberUids server-side,
+// but not "memberUids contains uid AND ownerUid != uid" in a single query.
+// Piece 1's board fetches both and keeps them as separate arrays throughout
+// (never merges them back into one list) since they render in two distinct
+// sections with different card content.
+export async function getOwnedProjects(uid: string): Promise<Project[]> {
+  const snapshot = await getDocs(query(collection(db, 'projects'), where('ownerUid', '==', uid)));
+  return snapshot.docs.map(projectFromDoc);
+}
+
+export async function getContributingProjects(uid: string): Promise<Project[]> {
+  const snapshot = await getDocs(
+    query(collection(db, 'projects'), where('memberUids', 'array-contains', uid))
+  );
+  return snapshot.docs.map(projectFromDoc).filter((project) => project.ownerUid !== uid);
+}
+
+export async function getProject(projectId: string): Promise<Project | null> {
+  const snapshot = await getDoc(doc(db, 'projects', projectId));
+  return snapshot.exists() ? projectFromDoc(snapshot as QueryDocumentSnapshot<DocumentData>) : null;
+}
+
+export async function getProjectJournalEntries(project: Project): Promise<JournalEntry[]> {
+  const snapshot = await getDocs(
+    query(collection(db, 'projects', project.id, 'journalEntries'), orderBy('createdAt', 'desc'))
+  );
+  return Promise.all(snapshot.docs.map((docSnap) => journalEntryFromDoc(project.id, project.title, docSnap)));
+}
+
+// The dashboard card's "N entries · updated X" + "Latest: ..." strip needs
+// only the count and the single newest entry, not the full list — a count
+// aggregation plus a limit(1) query is much cheaper than fetching every
+// entry (getProjectJournalEntries) just to read entries.length and [0].
+export async function getProjectJournalEntryCount(projectId: string): Promise<number> {
+  const snapshot = await getCountFromServer(collection(db, 'projects', projectId, 'journalEntries'));
+  return snapshot.data().count;
+}
+
+export async function getLatestJournalEntry(project: Project): Promise<JournalEntry | null> {
+  const snapshot = await getDocs(
+    query(collection(db, 'projects', project.id, 'journalEntries'), orderBy('createdAt', 'desc'), limit(1))
+  );
+  const docSnap = snapshot.docs[0];
+  return docSnap ? journalEntryFromDoc(project.id, project.title, docSnap) : null;
+}
+
+// Resolves display names for just the first `count` collaborator uids —
+// same "avatar stack only shows a handful of faces" trade-off as
+// getClubMemberPreviews.
+export async function getProjectMemberPreviews(memberUids: string[], count: number): Promise<UserInfo[]> {
+  return Promise.all(memberUids.slice(0, count).map((uid) => getUserInfo(uid)));
+}
+
+// Two other public projects sharing at least one tag, falling back to any
+// other public projects if there's no tag overlap — same pattern as
+// getRelatedClubs, used by the viewer-side sidebar's "Related" section.
+export async function getRelatedProjects(project: Project, count: number): Promise<Project[]> {
+  const snapshot = await getDocs(query(collection(db, 'projects'), where('visibility', '==', 'public')));
+  const candidates = snapshot.docs.map(projectFromDoc).filter((candidate) => candidate.id !== project.id);
+  const scored = candidates
+    .map((candidate) => ({
+      candidate,
+      sharedTags: candidate.tags.filter((tag) => project.tags.includes(tag)).length,
+    }))
+    .sort((a, b) => b.sharedTags - a.sharedTags);
+  return scored.slice(0, count).map(({ candidate }) => candidate);
+}
+
+async function joinRequestFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Promise<JoinRequest> {
+  const data = docSnap.data();
+  return {
+    uid: docSnap.id,
+    name: data.name ?? 'Someone',
+    status: 'pending',
+    createdAt: toMillis(data.createdAt),
+  } satisfies JoinRequest;
+}
+
+// Every doc remaining in joinRequests IS pending — Accept/Decline delete the
+// doc rather than marking it resolved (see firestore.rules for why), so
+// there's nothing else a doc here could be. The where() clause is kept
+// anyway so the query still reads correctly if that invariant ever changes.
+export async function getJoinRequests(projectId: string): Promise<JoinRequest[]> {
+  const snapshot = await getDocs(
+    query(collection(db, 'projects', projectId, 'joinRequests'), where('status', '==', 'pending'))
+  );
+  return Promise.all(snapshot.docs.map(joinRequestFromDoc));
+}
+
+export async function getOwnJoinRequest(projectId: string, uid: string): Promise<JoinRequest | null> {
+  const snapshot = await getDoc(doc(db, 'projects', projectId, 'joinRequests', uid));
+  return snapshot.exists() ? joinRequestFromDoc(snapshot as QueryDocumentSnapshot<DocumentData>) : null;
 }

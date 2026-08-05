@@ -1,7 +1,7 @@
 import { IconSparkles } from '@tabler/icons-react';
+import Link from 'next/link';
 
 import { LookingForCallout } from '@/components/features/LookingForCallout';
-import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import type { Project } from '@/lib/types';
 
@@ -28,7 +28,10 @@ export function ProjectCard({
   const collaboratorCount = project.memberUids.length;
 
   return (
-    <Card className="flex flex-col gap-3">
+    <Link
+      href={`/projects/${project.id}`}
+      className="flex flex-col gap-3 rounded-card bg-white p-5 transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+    >
       {recommendationReason && (
         <div className="flex items-center gap-1.5 text-xs text-sand">
           <IconSparkles className="size-3.5 text-deep-fresh" aria-hidden="true" />
@@ -64,6 +67,6 @@ export function ProjectCard({
           {project.lookingFor && <LookingForCallout role={project.lookingFor.role} />}
         </div>
       )}
-    </Card>
+    </Link>
   );
 }

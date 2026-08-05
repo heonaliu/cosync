@@ -16,6 +16,11 @@ type ReportButtonProps = {
   sourceRef: string;
   /** Noun used in the confirm dialog's copy, e.g. "club". */
   label: string;
+  /** 'icon' (default) is the icon-only button used next to a club/project
+   * card. 'button' renders a bordered "Report" text button — used where it
+   * sits alongside other labeled actions like Share, e.g. a project's
+   * viewer-view header. */
+  variant?: 'icon' | 'button';
   className?: string;
 };
 
@@ -23,7 +28,7 @@ type ReportButtonProps = {
 // user-generated surface, writing to reports/{reportId} with severity, kind,
 // and sourceRef — this is that button, built generically so other surfaces
 // (projects, opportunities, discussions) can reuse it later.
-export function ReportButton({ kind, sourceRef, label, className }: ReportButtonProps) {
+export function ReportButton({ kind, sourceRef, label, variant = 'icon', className }: ReportButtonProps) {
   const { user } = useAuth();
 
   async function handleReport(): Promise<void> {
@@ -41,9 +46,16 @@ export function ReportButton({ kind, sourceRef, label, className }: ReportButton
   return (
     <ConfirmDialog
       trigger={
-        <Button type="button" variant="outline" size="icon-sm" aria-label={`Report this ${label}`} className={className}>
-          <IconFlag2 className="size-4 text-sand" />
-        </Button>
+        variant === 'icon' ? (
+          <Button type="button" variant="outline" size="icon-sm" aria-label={`Report this ${label}`} className={className}>
+            <IconFlag2 className="size-4 text-sand" />
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" size="sm" className={className}>
+            <IconFlag2 className="size-4" aria-hidden="true" />
+            Report
+          </Button>
+        )
       }
       title={`Report this ${label}?`}
       description="Let us know if something here needs a closer look from our team."

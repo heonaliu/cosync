@@ -4,7 +4,7 @@ import { arrayRemove, arrayUnion, doc, increment, updateDoc } from 'firebase/fir
 import { useEffect, useRef, useState } from 'react';
 
 import { db } from '@/lib/firebase';
-import type { Discussion } from '@/lib/types';
+import type { JournalEntry } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 
 type CheerState = {
@@ -13,29 +13,29 @@ type CheerState = {
   toggleCheer: () => Promise<void>;
 };
 
-// Optimistic toggle, same pattern as useSavedOpportunity: flip the count and
-// hasCheered immediately, write in the background, revert both on failure.
-// hasCheered starts false and is synced by an effect keyed on user?.uid
-// rather than a useState lazy initializer — useAuth() resolves the
-// signed-in user asynchronously, so a lazy initializer would lock hasCheered
-// to false forever even after the real uid loads (same race found and fixed
-// in useRsvp.ts's RSVP-status bug).
-export function useCheerDiscussion(discussion: Discussion): CheerState {
+// Same shape as useCheerDiscussion, but the initial hasCheered is synced via
+// an effect keyed on user?.uid rather than computed in useState's lazy
+// initializer. useAuth() resolves the signed-in user asynchronously — on the
+// very first render user is still null, so a lazy initializer would lock
+// hasCheered to false forever even after the real uid loads (this exact bug
+// was found and fixed in useRsvp.ts; applying the fix here from the start
+// rather than reintroducing it in a new hook).
+export function useCheerJournalEntry(entry: JournalEntry): CheerState {
   const { user } = useAuth();
   const [hasCheered, setHasCheered] = useState(false);
-  const [cheerCount, setCheerCount] = useState(discussion.cheerCount);
+  const [cheerCount, setCheerCount] = useState(entry.cheerCount);
   const hasToggled = useRef(false);
 
   const uid = user?.uid;
   useEffect(() => {
     if (hasToggled.current) return;
-    setHasCheered(Boolean(uid && discussion.cheeredByUids?.includes(uid)));
-  }, [discussion, uid]);
+    setHasCheered(Boolean(uid && entry.cheeredByUids?.includes(uid)));
+  }, [entry, uid]);
 
   async function toggleCheer(): Promise<void> {
     if (!user) return;
     hasToggled.current = true;
-    const ref = doc(db, 'clubs', discussion.clubId, 'discussions', discussion.id);
+    const ref = doc(db, 'projects', entry.projectId, 'journalEntries', entry.id);
     const nextCheered = !hasCheered;
 
     setHasCheered(nextCheered);

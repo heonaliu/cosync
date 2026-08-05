@@ -1,3 +1,5 @@
+import type { ProjectStage } from '@/lib/types';
+
 export type AccentColor = 'sky' | 'amber' | 'sage' | 'lilac' | 'peach';
 
 // peach is excluded from the hash rotation below (ACCENT_COLORS) — it's only
@@ -64,4 +66,24 @@ export function accentClasses(color: AccentColor, options?: { inverted?: boolean
     return { bg: ACCENT_DEEP_BG[color], text: 'text-white' };
   }
   return { bg: ACCENT_BG[color], text: ACCENT_TEXT[color] };
+}
+
+// A project's stage pill has a fixed color per stage (unlike tags, which
+// hash) — idea reads as "just started" (green), prototyping/shipping both
+// read as "actively moving" (amber), differentiated by their label text
+// rather than a fourth color.
+const STAGE_COLORS: Record<ProjectStage, AccentColor> = {
+  idea: 'sage',
+  prototyping: 'amber',
+  shipping: 'amber',
+};
+
+export const STAGE_LABELS: Record<ProjectStage, string> = {
+  idea: 'Idea',
+  prototyping: 'Prototyping',
+  shipping: 'Shipping',
+};
+
+export function stageColorFor(stage: ProjectStage): AccentColor {
+  return STAGE_COLORS[stage];
 }

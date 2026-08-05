@@ -13,10 +13,31 @@ export type Project = {
   stage: ProjectStage;
   visibility: ProjectVisibility;
   lookingFor?: { role: string; description: string };
+  /** Reference links (repo, demo video, BOM, ...) shown in the detail page's
+   * sidebar. Owner-editable, same "empty section renders nothing" pattern as
+   * Club.pinnedResources. */
+  links?: { label: string; url: string }[];
   memberUids: string[];
   followerCount: number;
+  /** Uids who've followed — same toggle-not-just-increment pattern as
+   * Discussion.cheeredByUids, so "+ Follow project" can show each viewer
+   * their own followed state instead of only ever incrementing. */
+  followerUids?: string[];
   createdAt: number;
   updatedAt: number;
+};
+
+/** A pending ask-to-join request. Doc id under projects/{projectId}/joinRequests
+ * IS the requester's uid — one request per person per project, so "have I
+ * already asked?" is a getDoc by id rather than a query, and Accept/Decline
+ * never have to disambiguate which of several requests from the same person
+ * to resolve. Accepting or declining deletes the doc rather than updating
+ * status in place — see firestore.rules for why. */
+export type JoinRequest = {
+  uid: string;
+  name: string;
+  status: 'pending';
+  createdAt: number;
 };
 
 // Discover's cards show a journal-entry count alongside the project, which
@@ -146,7 +167,14 @@ export type JournalEntry = {
   authorUid: string;
   authorName: string;
   content: string;
+  /** Attachment filenames/URLs shown as a small preview strip — the Photo/Code
+   * buttons on the composer don't do real uploads yet, so this holds
+   * whatever a caller (e.g. seed data) sets directly. */
+  mediaUrls?: string[];
   cheerCount: number;
+  /** Uids who've cheered — same toggle-not-just-increment pattern as
+   * Discussion.cheeredByUids. */
+  cheeredByUids?: string[];
   commentCount: number;
   createdAt: number;
 };
