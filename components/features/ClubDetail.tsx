@@ -10,6 +10,8 @@ import { ClubDiscussionList } from '@/components/features/ClubDiscussionList';
 import { ClubEventCard } from '@/components/features/ClubEventCard';
 import { ClubHeader } from '@/components/features/ClubHeader';
 import { ClubSidebar } from '@/components/features/ClubSidebar';
+import { UpcomingEventsList } from '@/components/features/UpcomingEventsList';
+import { getNextEventOccurrence } from '@/lib/time';
 import { getClub, getClubDiscussions, getClubMemberPreviews, getRelatedClubs } from '@/lib/queries';
 import type { Club, Discussion } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
@@ -87,14 +89,27 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
   }
 
   const isMember = Boolean(user && club.memberUids.includes(user.uid));
-  // Soonest upcoming event by eventDate, not most-recently-posted — those
-  // aren't the same thing, since `discussions` is ordered by createdAt.
-  const upcomingEvent = discussions
+
+  // Every event discussion that still has a next occurrence (one-time
+  // events that already happened drop out entirely; recurring ones always
+  // have a next occurrence as long as they still have recurringDays set),
+  // soonest first. The spotlight card gets the very first one; the rest
+  // show in the compact list below it — this is the "see multiple/future
+  // events" view, sorted by when they actually happen next, not by post date.
+  const upcomingEvents = discussions
+    .filter((discussion) => discussion.kind === 'event')
+    .map((discussion) => ({ discussion, nextOccurrence: getNextEventOccurrence(discussion) }))
     .filter(
-      (discussion): discussion is Discussion & { eventDate: number } =>
-        discussion.kind === 'event' && discussion.eventDate !== undefined && discussion.eventDate >= Date.now()
+      (entry): entry is { discussion: Discussion; nextOccurrence: number } => entry.nextOccurrence !== undefined
     )
-    .sort((a, b) => a.eventDate - b.eventDate)[0];
+    .sort((a, b) => a.nextOccurrence - b.nextOccurrence)
+    .map((entry) => entry.discussion);
+
+  const [spotlightEvent, ...restOfUpcomingEvents] = upcomingEvents;
+
+  function handleEventChanged(): void {
+    setReloadToken((token) => token + 1);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,7 +130,13 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
             <ClubAboutCard club={club} />
           )}
 
-          {upcomingEvent && <ClubEventCard event={upcomingEvent} isMember={isMember} />}
+          {spotlightEvent && (
+            <ClubEventCard key={spotlightEvent.id} event={spotlightEvent} isMember={isMember} onChanged={handleEventChanged} />
+          )}
+
+          {restOfUpcomingEvents.length > 0 && (
+            <UpcomingEventsList events={restOfUpcomingEvents} onChanged={handleEventChanged} />
+          )}
 
           <ClubDiscussionList
             discussions={discussions}

@@ -132,6 +132,8 @@ type DummyDiscussion = {
   title?: string;
   eventInDays?: number;
   eventLocation?: string;
+  eventHost?: string;
+  recurringDays?: number[];
   goingCount?: number;
   interestedCount?: number;
 };
@@ -192,7 +194,7 @@ const DUMMY_CLUBS: DummyClub[] = [
         cheerCount: 18,
       },
       {
-        content: 'Ms. Reyes hosting.',
+        content: '',
         title: 'Weekly build night',
         kind: 'event',
         daysAgo: 0,
@@ -200,6 +202,10 @@ const DUMMY_CLUBS: DummyClub[] = [
         cheerCount: 0,
         eventInDays: 3,
         eventLocation: 'Room 217',
+        eventHost: 'Ms. Reyes',
+        // Thursday + Sunday, as an example of the custom-days picker rather
+        // than just "recurs on whatever day eventInDays happens to land on."
+        recurringDays: [4, 0],
         goingCount: 8,
         interestedCount: 3,
       },
@@ -450,6 +456,8 @@ export default function SeedPage() {
             discussionPayload.eventDate = new Date(Date.now() + discussion.eventInDays * DAY_MS);
           }
           if (discussion.eventLocation) discussionPayload.eventLocation = discussion.eventLocation;
+          if (discussion.eventHost) discussionPayload.eventHost = discussion.eventHost;
+          if (discussion.recurringDays) discussionPayload.recurringDays = discussion.recurringDays;
           if (discussion.goingCount !== undefined) discussionPayload.goingCount = discussion.goingCount;
           if (discussion.interestedCount !== undefined) {
             discussionPayload.interestedCount = discussion.interestedCount;

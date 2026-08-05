@@ -7,6 +7,7 @@ import { MyClubCard } from '@/components/features/MyClubCard';
 import { StartClubDialog } from '@/components/features/StartClubDialog';
 import { PillToggle } from '@/components/ui/PillToggle';
 import { getClubDiscussions, getDiscoverableClubs, getUserClubs } from '@/lib/queries';
+import { getNextEventOccurrence } from '@/lib/time';
 import type { Club, Discussion } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 
@@ -28,15 +29,16 @@ function summarizeActivity(discussions: Discussion[]): {
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const recentDiscussionCount = discussions.filter((d) => d.createdAt >= weekAgo).length;
   const lastDiscussionAt = discussions[0]?.createdAt;
-  // Soonest upcoming by eventDate, not most-recently-posted — see the same
-  // fix in ClubDetail.tsx for why .find() on createdAt-ordered discussions
-  // was picking the wrong one.
+  // Soonest upcoming by real next-occurrence, not raw eventDate — a
+  // recurring event's stored eventDate can be weeks in the past (it's just
+  // the anchor for time-of-day) while the series is still very much
+  // upcoming; getNextEventOccurrence accounts for that the same way
+  // ClubDetail.tsx does for the detail page's spotlight card.
   const upcomingEvent = discussions
-    .filter(
-      (d): d is Discussion & { eventDate: number } =>
-        d.kind === 'event' && d.eventDate !== undefined && d.eventDate >= Date.now()
-    )
-    .sort((a, b) => a.eventDate - b.eventDate)[0];
+    .filter((d) => d.kind === 'event')
+    .map((d) => ({ discussion: d, nextOccurrence: getNextEventOccurrence(d) }))
+    .filter((entry): entry is { discussion: Discussion; nextOccurrence: number } => entry.nextOccurrence !== undefined)
+    .sort((a, b) => a.nextOccurrence - b.nextOccurrence)[0]?.discussion;
   return { recentDiscussionCount, lastDiscussionAt, upcomingEvent };
 }
 

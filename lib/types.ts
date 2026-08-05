@@ -114,15 +114,23 @@ export type Discussion = {
   /** Free-text name of who's running the event — the composer's "Hosted by"
    * field defaults to the club's advisorName but is editable. */
   eventHost?: string;
-  /** Weekly-recurring vs one-off — changes how ClubEventCard formats the
-   * date line ("Every Thursday at 3pm" vs a specific date). */
-  recurring?: boolean;
+  /** Which weekdays this event repeats on (0 = Sunday ... 6 = Saturday, JS
+   * Date#getDay() convention). Empty/undefined = one-time event. Lets
+   * someone pick "every Monday and Wednesday" instead of just a blanket
+   * weekly-on-the-same-day toggle. There's still exactly one Discussion doc
+   * per recurring series, not a doc per occurrence — getNextEventOccurrence
+   * in lib/time.ts computes the next real date on the fly from this. */
+  recurringDays?: number[];
   /** RSVP counts for kind: 'event' discussions. Not in CLAUDE.md's base
    * discussions schema — added because the Going/Interested buttons on the
-   * event card need real numbers to show. Display-only for now; the
-   * buttons don't write a real RSVP yet. */
+   * event card need real numbers to show. */
   goingCount?: number;
   interestedCount?: number;
+  /** Uids currently RSVP'd — mutually exclusive (being in one array means
+   * not being in the other), lets the buttons toggle per-viewer instead of
+   * just incrementing forever. */
+  goingUids?: string[];
+  interestedUids?: string[];
   replyCount: number;
   cheerCount: number;
   /** Uids who've cheered — lets the Cheer button toggle instead of just
