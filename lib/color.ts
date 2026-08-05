@@ -1,5 +1,8 @@
-export type AccentColor = 'sky' | 'amber' | 'sage' | 'lilac';
+export type AccentColor = 'sky' | 'amber' | 'sage' | 'lilac' | 'peach';
 
+// peach is excluded from the hash rotation below (ACCENT_COLORS) — it's only
+// reachable by explicit choice (the club color picker), not by hashing a tag
+// name, so the four-color hash distribution for tags/avatars stays unchanged.
 const ACCENT_COLORS: readonly AccentColor[] = ['sky', 'amber', 'sage', 'lilac'];
 
 const ACCENT_BG: Record<AccentColor, string> = {
@@ -7,6 +10,7 @@ const ACCENT_BG: Record<AccentColor, string> = {
   amber: 'bg-amber',
   sage: 'bg-sage',
   lilac: 'bg-lilac',
+  peach: 'bg-peach',
 };
 
 const ACCENT_TEXT: Record<AccentColor, string> = {
@@ -14,6 +18,9 @@ const ACCENT_TEXT: Record<AccentColor, string> = {
   amber: 'text-deep-amber',
   sage: 'text-deep-fresh',
   lilac: 'text-deep-purple',
+  // No deep-peach token exists in tailwind.config.ts, so this reuses ink
+  // rather than inventing an unlisted hex value.
+  peach: 'text-ink',
 };
 
 // A few category tags have a color the design calls out explicitly (e.g.
@@ -40,6 +47,21 @@ export function accentColorFor(seed: string): AccentColor {
   return ACCENT_COLORS[hash % ACCENT_COLORS.length];
 }
 
-export function accentClasses(color: AccentColor): { bg: string; text: string } {
+// The "deep" pairing of each tint — used when a badge needs to sit on top of
+// its own light tint (e.g. a club icon badge on that same club's tinted
+// card) and the light-bg/deep-icon pairing from accentClasses would have no
+// contrast against itself. peach has no deep-peach token, so it reuses ink.
+const ACCENT_DEEP_BG: Record<AccentColor, string> = {
+  sky: 'bg-deep-sky',
+  amber: 'bg-deep-amber',
+  sage: 'bg-deep-fresh',
+  lilac: 'bg-deep-purple',
+  peach: 'bg-ink',
+};
+
+export function accentClasses(color: AccentColor, options?: { inverted?: boolean }): { bg: string; text: string } {
+  if (options?.inverted) {
+    return { bg: ACCENT_DEEP_BG[color], text: 'text-white' };
+  }
   return { bg: ACCENT_BG[color], text: ACCENT_TEXT[color] };
 }

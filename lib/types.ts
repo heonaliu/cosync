@@ -61,6 +61,84 @@ export type SavedOpportunity = {
   lng?: number;
 };
 
+export type ClubIconName = 'cpu' | 'robot' | 'brain' | 'palette' | 'book' | 'music';
+export type ClubColorName = 'sky' | 'amber' | 'sage' | 'lilac' | 'peach';
+export type ClubScope = 'school' | 'online' | 'hybrid';
+export type ClubAccess = 'anyone' | 'schoolOnly' | 'invite';
+
+export type Club = {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  iconName: ClubIconName;
+  colorName: ClubColorName;
+  scope: ClubScope;
+  schoolName?: string;
+  access: ClubAccess;
+  memberUids: string[];
+  adminUids: string[];
+  advisorUid?: string;
+  /** Resolved from users/{advisorUid} at read time, not stored on the club
+   * doc — same denormalize-on-read pattern as Opportunity.posterName. */
+  advisorName?: string;
+  memberCount: number;
+  // Detail-page-only fields — none of these are collected by the Start a
+  // Club form (Piece 4 has no inputs for them), so they only exist on
+  // clubs seeded/edited directly in Firestore. The detail page omits each
+  // section gracefully when its field is absent, rather than showing
+  // placeholder/fake content for clubs that never set them.
+  meetsSchedule?: string;
+  cohortSize?: string;
+  cost?: string;
+  pinnedResources?: { label: string; url?: string }[];
+  whatYoullGet?: string[];
+  createdAt: number;
+};
+
+export type DiscussionKind = 'discussion' | 'announcement' | 'event';
+
+export type Discussion = {
+  id: string;
+  clubId: string;
+  authorUid: string;
+  authorName: string;
+  /** True if the author's role is educator/admin, or they're this club's
+   * advisor — drives the shield-check icon next to their name. */
+  authorIsEducator: boolean;
+  title: string;
+  content: string;
+  kind: DiscussionKind;
+  eventDate?: number;
+  eventLocation?: string;
+  /** Free-text name of who's running the event — the composer's "Hosted by"
+   * field defaults to the club's advisorName but is editable. */
+  eventHost?: string;
+  /** Which weekdays this event repeats on (0 = Sunday ... 6 = Saturday, JS
+   * Date#getDay() convention). Empty/undefined = one-time event. Lets
+   * someone pick "every Monday and Wednesday" instead of just a blanket
+   * weekly-on-the-same-day toggle. There's still exactly one Discussion doc
+   * per recurring series, not a doc per occurrence — getNextEventOccurrence
+   * in lib/time.ts computes the next real date on the fly from this. */
+  recurringDays?: number[];
+  /** RSVP counts for kind: 'event' discussions. Not in CLAUDE.md's base
+   * discussions schema — added because the Going/Interested buttons on the
+   * event card need real numbers to show. */
+  goingCount?: number;
+  interestedCount?: number;
+  /** Uids currently RSVP'd — mutually exclusive (being in one array means
+   * not being in the other), lets the buttons toggle per-viewer instead of
+   * just incrementing forever. */
+  goingUids?: string[];
+  interestedUids?: string[];
+  replyCount: number;
+  cheerCount: number;
+  /** Uids who've cheered — lets the Cheer button toggle instead of just
+   * incrementing forever, and shows each viewer their own cheered state. */
+  cheeredByUids?: string[];
+  createdAt: number;
+};
+
 export type JournalEntry = {
   id: string;
   projectId: string;

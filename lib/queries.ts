@@ -16,7 +16,18 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
-import type { JournalEntry, Opportunity, Project, ProjectWithStats } from '@/lib/types';
+import type {
+  Club,
+  ClubAccess,
+  ClubIconName,
+  ClubScope,
+  Discussion,
+  DiscussionKind,
+  JournalEntry,
+  Opportunity,
+  Project,
+  ProjectWithStats,
+} from '@/lib/types';
 
 function toMillis(value: unknown): number {
   if (value && typeof value === 'object' && 'toMillis' in value) {
@@ -44,13 +55,17 @@ function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
   };
 }
 
-async function getUserInfo(uid: string): Promise<{ name: string; verified: boolean }> {
-  if (!uid) return { name: 'Someone', verified: false };
+export type UserInfo = { name: string; verified: boolean; role: string | null; school: string | null };
+
+export async function getUserInfo(uid: string): Promise<UserInfo> {
+  if (!uid) return { name: 'Someone', verified: false, role: null, school: null };
   const snapshot = await getDoc(doc(db, 'users', uid));
   const data = snapshot.data();
   return {
     name: (data?.displayName as string | undefined) ?? (data?.handle as string | undefined) ?? 'Someone',
     verified: Boolean(data?.verified),
+    role: (data?.role as string | undefined) ?? null,
+    school: (data?.school as string | undefined) ?? null,
   };
 }
 
@@ -155,6 +170,133 @@ export async function getSavedOpportunities(uid: string): Promise<Opportunity[]>
   );
   const opportunities = await Promise.all(opportunityDocs.map(opportunityFromDoc));
   return opportunities.filter(isOpportunity);
+}
+
+async function clubFromDoc(docSnap: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>): Promise<Club | null> {
+  if (!docSnap.exists()) return null;
+  const data = docSnap.data();
+  const advisorUid: string | undefined = data.advisorUid;
+  const advisor = advisorUid ? await getUserInfo(advisorUid) : null;
+  const memberUids: string[] = Array.isArray(data.memberUids) ? data.memberUids : [];
+  return {
+    id: docSnap.id,
+    name: data.name ?? 'Untitled club',
+    description: data.description ?? '',
+    tags: Array.isArray(data.tags) ? data.tags : [],
+    iconName: (data.iconName as ClubIconName) ?? 'cpu',
+    colorName: data.colorName ?? 'sky',
+    scope: (data.scope as ClubScope) ?? 'online',
+    schoolName: data.schoolName,
+    access: (data.access as ClubAccess) ?? 'anyone',
+    memberUids,
+    adminUids: Array.isArray(data.adminUids) ? data.adminUids : [],
+    advisorUid,
+    advisorName: advisor?.name,
+    memberCount: typeof data.memberCount === 'number' ? data.memberCount : memberUids.length,
+    meetsSchedule: data.meetsSchedule,
+    cohortSize: data.cohortSize,
+    cost: data.cost,
+    pinnedResources: Array.isArray(data.pinnedResources) ? data.pinnedResources : undefined,
+    whatYoullGet: Array.isArray(data.whatYoullGet) ? data.whatYoullGet : undefined,
+    createdAt: toMillis(data.createdAt),
+  } satisfies Club;
+}
+
+function isClub(value: Club | null): value is Club {
+  return value !== null;
+}
+
+async function getAllClubs(): Promise<Club[]> {
+  const snapshot = await getDocs(collection(db, 'clubs'));
+  const clubs = await Promise.all(snapshot.docs.map(clubFromDoc));
+  return clubs.filter(isClub);
+}
+
+// Clubs this user is already a member of — Firestore can filter this
+// server-side since array-contains is a real query operator.
+export async function getUserClubs(uid: string): Promise<Club[]> {
+  const snapshot = await getDocs(query(collection(db, 'clubs'), where('memberUids', 'array-contains', uid)));
+  const clubs = await Promise.all(snapshot.docs.map(clubFromDoc));
+  return clubs.filter(isClub);
+}
+
+// Clubs this user is NOT in yet. Firestore has no "array does not contain"
+// operator, so there's no way to push the exclusion server-side — this
+// fetches every club (the clubs read rule already allows any signed-in user
+// to read the whole collection) and filters out memberships in memory.
+export async function getDiscoverableClubs(uid: string): Promise<Club[]> {
+  const clubs = await getAllClubs();
+  return clubs.filter((club) => !club.memberUids.includes(uid));
+}
+
+// Two other clubs sharing at least one tag with `club`, falling back to any
+// other clubs if there's no tag overlap — used by the detail page's
+// "Related clubs" sidebar list.
+export async function getRelatedClubs(club: Club, count: number): Promise<Club[]> {
+  const clubs = (await getAllClubs()).filter((candidate) => candidate.id !== club.id);
+  const scored = clubs
+    .map((candidate) => ({
+      candidate,
+      sharedTags: candidate.tags.filter((tag) => club.tags.includes(tag)).length,
+    }))
+    .sort((a, b) => b.sharedTags - a.sharedTags);
+  return scored.slice(0, count).map(({ candidate }) => candidate);
+}
+
+export async function getClub(clubId: string): Promise<Club | null> {
+  const snapshot = await getDoc(doc(db, 'clubs', clubId));
+  return clubFromDoc(snapshot);
+}
+
+// Resolves display names for just the first `count` member uids — the
+// avatar stack only ever shows a handful of faces plus a "+N" overflow, so
+// there's no reason to resolve every member's name to render it.
+export async function getClubMemberPreviews(memberUids: string[], count: number): Promise<string[]> {
+  const previews = await Promise.all(memberUids.slice(0, count).map((uid) => getUserInfo(uid)));
+  return previews.map((preview) => preview.name);
+}
+
+async function discussionFromDoc(
+  clubId: string,
+  club: Club,
+  docSnap: QueryDocumentSnapshot<DocumentData>
+): Promise<Discussion> {
+  const data = docSnap.data();
+  const authorUid: string = data.authorUid ?? '';
+  const author = await getUserInfo(authorUid);
+  const authorIsEducator =
+    authorUid === club.advisorUid || author.role === 'educator' || author.role === 'admin';
+  return {
+    id: docSnap.id,
+    clubId,
+    authorUid,
+    authorName: author.name,
+    authorIsEducator,
+    title: data.title ?? '',
+    content: data.content ?? '',
+    kind: (data.kind as DiscussionKind) ?? 'discussion',
+    eventDate: data.eventDate ? toMillis(data.eventDate) : undefined,
+    eventLocation: data.eventLocation,
+    eventHost: data.eventHost,
+    recurringDays: Array.isArray(data.recurringDays) ? data.recurringDays : undefined,
+    goingCount: typeof data.goingCount === 'number' ? data.goingCount : undefined,
+    interestedCount: typeof data.interestedCount === 'number' ? data.interestedCount : undefined,
+    goingUids: Array.isArray(data.goingUids) ? data.goingUids : [],
+    interestedUids: Array.isArray(data.interestedUids) ? data.interestedUids : [],
+    replyCount: data.replyCount ?? 0,
+    cheerCount: data.cheerCount ?? 0,
+    cheeredByUids: Array.isArray(data.cheeredByUids) ? data.cheeredByUids : [],
+    createdAt: toMillis(data.createdAt),
+  } satisfies Discussion;
+}
+
+// Takes the already-fetched `club` rather than re-reading it, since every
+// caller (the club detail page) already has it in hand from getClub().
+export async function getClubDiscussions(clubId: string, club: Club): Promise<Discussion[]> {
+  const snapshot = await getDocs(
+    query(collection(db, 'clubs', clubId, 'discussions'), orderBy('createdAt', 'desc'))
+  );
+  return Promise.all(snapshot.docs.map((docSnap) => discussionFromDoc(clubId, club, docSnap)));
 }
 
 // collectionGroup reaches every project's journalEntries subcollection in one
