@@ -18,11 +18,16 @@ type BadgeProps = {
   icon: React.ComponentType<{ className?: string }>;
   color: AccentColor;
   size?: BadgeSize;
+  /** Dark fill + white icon instead of the usual light tint + deep icon —
+   * for when the badge sits on top of that same color's own light tint
+   * (e.g. a club badge on that club's tinted card), where the normal
+   * pairing would have no contrast against itself. */
+  inverted?: boolean;
   className?: string;
 };
 
-export function Badge({ icon: Icon, color, size = 'md', className }: BadgeProps) {
-  const { bg, text } = accentClasses(color);
+export function Badge({ icon: Icon, color, size = 'md', inverted = false, className }: BadgeProps) {
+  const { bg, text } = accentClasses(color, { inverted });
 
   return (
     <span aria-hidden="true" className={cn('inline-flex items-center justify-center', bg, SIZE_CLASSES[size], className)}>
