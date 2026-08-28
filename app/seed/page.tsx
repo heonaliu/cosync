@@ -26,6 +26,11 @@ type DummyOpportunity = {
   location?: string;
   deadlineDaysFromNow?: number;
   featured?: boolean;
+  // Was missing entirely until Home's "For you" tab started matching
+  // opportunities against a viewer's interests — untagged opportunities
+  // can never match anything, so every entry below needs at least one tag
+  // that overlaps a PROJECT_CATEGORY_TAGS-style interest to be testable.
+  tags?: string[];
 };
 
 const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
@@ -37,6 +42,7 @@ const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
     location: 'Remote',
     deadlineDaysFromNow: 30,
     featured: true,
+    tags: ['Hardware', 'Software'],
   },
   {
     type: 'hackathon',
@@ -44,6 +50,7 @@ const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
     description: '24-hour build weekend for high schoolers. Teams of up to 4.',
     location: 'Cambridge, MA',
     deadlineDaysFromNow: 7,
+    tags: ['Software'],
   },
   {
     type: 'research',
@@ -52,6 +59,7 @@ const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
       'Evaluate multilingual sentiment models. 6 hours/week. Open to juniors and seniors with Python experience.',
     location: 'Remote',
     deadlineDaysFromNow: 14,
+    tags: ['AI/ML'],
   },
   {
     type: 'competition',
@@ -59,12 +67,14 @@ const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
     description: 'Build and compete with an autonomous robot in a regional qualifier round.',
     location: 'Seattle, WA',
     deadlineDaysFromNow: 45,
+    tags: ['Robotics', 'Hardware'],
   },
   {
     type: 'mentorship',
     title: '1:1 mentorship in embedded systems',
     description: 'Weekly check-ins with a working firmware engineer. Open to any skill level.',
     location: 'Remote',
+    tags: ['Hardware'],
     // No deadline on purpose — exercises the nulls-last sort on the Opportunities page.
   },
 ];
@@ -516,7 +526,7 @@ export default function SeedPage() {
           type: item.type,
           title: item.title,
           description: item.description,
-          tags: [],
+          tags: item.tags ?? [],
           verified: false,
           featured: Boolean(item.featured),
           createdAt: serverTimestamp(),

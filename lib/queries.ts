@@ -58,10 +58,19 @@ function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
   };
 }
 
-export type UserInfo = { name: string; verified: boolean; role: string | null; school: string | null };
+export type UserInfo = {
+  name: string;
+  verified: boolean;
+  role: string | null;
+  school: string | null;
+  /** Coarse, self-reported city/area — never lat/lng (CLAUDE.md's safety
+   * rules bar storing a user's precise location). Powers Home's Nearby
+   * filter tab. null until the person sets one via SetLocationDialog. */
+  location: string | null;
+};
 
 export async function getUserInfo(uid: string): Promise<UserInfo> {
-  if (!uid) return { name: 'Someone', verified: false, role: null, school: null };
+  if (!uid) return { name: 'Someone', verified: false, role: null, school: null, location: null };
   const snapshot = await getDoc(doc(db, 'users', uid));
   const data = snapshot.data();
   return {
@@ -69,7 +78,55 @@ export async function getUserInfo(uid: string): Promise<UserInfo> {
     verified: Boolean(data?.verified),
     role: (data?.role as string | undefined) ?? null,
     school: (data?.school as string | undefined) ?? null,
+    location: (data?.location as string | undefined) ?? null,
   };
+}
+
+// Interests live at users/{uid}/private/profile, not on the main users/{uid}
+// doc — see firestore.rules for why (same split useOnboardingStatus reads
+// from). Powers Home's "For you" tag-matching; only ever called for the
+// current signed-in user's own uid, since that path's read rule is
+// owner-only.
+export async function getUserInterests(uid: string): Promise<string[]> {
+  const snapshot = await getDoc(doc(db, 'users', uid, 'private', 'profile'));
+  const interests = snapshot.data()?.interests;
+  return Array.isArray(interests) ? interests : [];
+}
+
+// Public projects whose tags overlap with the given interests — Home's "For
+// you" tab uses this instead of getPublicProjects when the viewer actually
+// has interests set, so the "recommended" label means something real.
+// array-contains-any caps at 10 values, hence the slice.
+//
+// The extra visibility filter isn't just belt-and-suspenders: Firestore
+// rejects a list query outright unless it can statically prove every
+// possible result satisfies the security rule's OR'd conditions, and a bare
+// `tags array-contains-any` filter doesn't line up with any branch of
+// `visibility == 'public' || ownerUid == uid || uid in memberUids` on its
+// own (see getFollowedProjects for the same fix, hit the same way).
+export async function getProjectsByTags(tags: string[], count: number): Promise<Project[]> {
+  if (tags.length === 0) return [];
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'projects'),
+      where('tags', 'array-contains-any', tags.slice(0, 10)),
+      where('visibility', '==', 'public'),
+      limit(count)
+    )
+  );
+  return snapshot.docs.map(projectFromDoc);
+}
+
+// Same idea for opportunities. No extra filter needed here — opportunities'
+// read rule is just `auth != null`, true for any signed-in request
+// regardless of resource.data, so it's already provable for any query shape.
+export async function getOpportunitiesByTags(tags: string[], count: number): Promise<Opportunity[]> {
+  if (tags.length === 0) return [];
+  const snapshot = await getDocs(
+    query(collection(db, 'opportunities'), where('tags', 'array-contains-any', tags.slice(0, 10)), limit(count))
+  );
+  const opportunities = await Promise.all(snapshot.docs.map(opportunityFromDoc));
+  return opportunities.filter(isOpportunity);
 }
 
 // Public projects only — matches the security rule that lets anyone read
@@ -360,6 +417,27 @@ export async function getContributingProjects(uid: string): Promise<Project[]> {
     query(collection(db, 'projects'), where('memberUids', 'array-contains', uid))
   );
   return snapshot.docs.map(projectFromDoc).filter((project) => project.ownerUid !== uid);
+}
+
+// Projects this user follows (the "+ Follow project" button on a project's
+// viewer page) — powers Home's "Following" filter tab. Follow is only ever
+// offered on public projects (a non-member can't even load a private/draft
+// one to follow it), so the visibility filter below is redundant with the
+// data's actual invariants — but it's required anyway: Firestore rejects a
+// list query outright if it can't statically prove every possible result
+// satisfies the security rule's OR'd conditions, and `followerUids
+// array-contains uid` alone doesn't line up with any of
+// `visibility == 'public' || ownerUid == uid || uid in memberUids`. Filtering
+// on visibility here makes the query provably match that first branch.
+export async function getFollowedProjects(uid: string): Promise<Project[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'projects'),
+      where('followerUids', 'array-contains', uid),
+      where('visibility', '==', 'public')
+    )
+  );
+  return snapshot.docs.map(projectFromDoc);
 }
 
 export async function getProject(projectId: string): Promise<Project | null> {

@@ -1,10 +1,14 @@
-import { IconShieldCheck } from '@tabler/icons-react';
+'use client';
+
+import { IconShieldCheck, IconSparkles } from '@tabler/icons-react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
+import { useSavedOpportunity } from '@/lib/useSavedOpportunity';
 
 const TYPE_LABELS: Record<OpportunityType, string> = {
   research: 'Research',
@@ -16,12 +20,39 @@ const TYPE_LABELS: Record<OpportunityType, string> = {
 
 type OpportunityCardProps = {
   opportunity: Opportunity;
-  onSave?: () => void;
+  /** Shows a "Recommended · ..." line above the type chip — same prop/
+   * rendering as ProjectCard's, used by Home's "For you" tab so a
+   * personalized opportunity reads the same way a personalized project
+   * does, instead of looking identical to an unfiltered listing. */
+  recommendationReason?: string;
 };
 
-export function OpportunityCard({ opportunity, onSave }: OpportunityCardProps) {
+// Home's opportunity card. Save reads/writes the same
+// users/{uid}/savedOpportunities subcollection as OpportunityListingCard
+// (the /opportunities page's card) via the same useSavedOpportunity hook —
+// a save made here shows up on /opportunities and /saved and vice versa
+// with no extra wiring, since both cards are just two views onto one hook.
+export function OpportunityCard({ opportunity, recommendationReason }: OpportunityCardProps) {
+  const { isSaved, isLoading, toggle } = useSavedOpportunity(opportunity);
+
+  async function handleSaveClick(): Promise<void> {
+    try {
+      await toggle();
+    } catch (error) {
+      console.error('Failed to update saved state:', error);
+      toast.error('Could not update saved state. Try again.');
+    }
+  }
+
   return (
     <Card className="flex flex-col gap-3">
+      {recommendationReason && (
+        <div className="flex items-center gap-1.5 text-xs text-sand">
+          <IconSparkles className="size-3.5 text-deep-fresh" aria-hidden="true" />
+          <span>Recommended · {recommendationReason}</span>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         <Chip label={TYPE_LABELS[opportunity.type]} color="lilac" />
         {opportunity.deadline && (
@@ -46,8 +77,14 @@ export function OpportunityCard({ opportunity, onSave }: OpportunityCardProps) {
             </span>
           )}
         </div>
-        <Button size="sm" onClick={onSave}>
-          Save
+        <Button
+          type="button"
+          variant={isSaved ? 'dark' : 'outline'}
+          size="sm"
+          disabled={isLoading}
+          onClick={() => void handleSaveClick()}
+        >
+          {isSaved ? 'Saved' : 'Save'}
         </Button>
       </div>
     </Card>
