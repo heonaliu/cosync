@@ -1,6 +1,6 @@
 'use client';
 
-import { IconShieldCheck, IconSparkles } from '@tabler/icons-react';
+import { IconMapPin, IconShieldCheck, IconSparkles } from '@tabler/icons-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -65,6 +65,12 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-medium text-ink">{opportunity.title}</h3>
         <p className="text-sm text-oak">{opportunity.description}</p>
+        {opportunity.location && (
+          <span className="inline-flex items-center gap-1 text-xs text-sand">
+            <IconMapPin className="size-3.5 shrink-0" aria-hidden="true" />
+            {opportunity.location}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1">

@@ -63,14 +63,21 @@ export type UserInfo = {
   verified: boolean;
   role: string | null;
   school: string | null;
-  /** Coarse, self-reported city/area — never lat/lng (CLAUDE.md's safety
-   * rules bar storing a user's precise location). Powers Home's Nearby
-   * filter tab. null until the person sets one via SetLocationDialog. */
+  /** Coarse, self-reported city/area. Powers Home's Nearby filter tab. null
+   * until the person sets one via LocationField. */
   location: string | null;
+  /** The city-level centroid behind `location` (LocationField restricts
+   * its Places Autocomplete to whole cities, never a street address) — see
+   * lib/location.ts's getDistanceMiles for why that distinction matters.
+   * null whenever location is null, or was set before this field existed. */
+  locationLat: number | null;
+  locationLng: number | null;
 };
 
 export async function getUserInfo(uid: string): Promise<UserInfo> {
-  if (!uid) return { name: 'Someone', verified: false, role: null, school: null, location: null };
+  if (!uid) {
+    return { name: 'Someone', verified: false, role: null, school: null, location: null, locationLat: null, locationLng: null };
+  }
   const snapshot = await getDoc(doc(db, 'users', uid));
   const data = snapshot.data();
   return {
@@ -79,6 +86,8 @@ export async function getUserInfo(uid: string): Promise<UserInfo> {
     role: (data?.role as string | undefined) ?? null,
     school: (data?.school as string | undefined) ?? null,
     location: (data?.location as string | undefined) ?? null,
+    locationLat: typeof data?.locationLat === 'number' ? data.locationLat : null,
+    locationLng: typeof data?.locationLng === 'number' ? data.locationLng : null,
   };
 }
 

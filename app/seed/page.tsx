@@ -24,6 +24,8 @@ type DummyOpportunity = {
   title: string;
   description: string;
   location?: string;
+  lat?: number;
+  lng?: number;
   deadlineDaysFromNow?: number;
   featured?: boolean;
   // Was missing entirely until Home's "For you" tab started matching
@@ -49,6 +51,8 @@ const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
     title: 'MIT Hackathon',
     description: '24-hour build weekend for high schoolers. Teams of up to 4.',
     location: 'Cambridge, MA',
+    lat: 42.3601,
+    lng: -71.0942,
     deadlineDaysFromNow: 7,
     tags: ['Software'],
   },
@@ -66,6 +70,8 @@ const DUMMY_OPPORTUNITIES: DummyOpportunity[] = [
     title: 'Regional Robotics Challenge',
     description: 'Build and compete with an autonomous robot in a regional qualifier round.',
     location: 'Seattle, WA',
+    lat: 47.6062,
+    lng: -122.3321,
     deadlineDaysFromNow: 45,
     tags: ['Robotics', 'Hardware'],
   },
@@ -532,6 +538,10 @@ export default function SeedPage() {
           createdAt: serverTimestamp(),
         };
         if (item.location) payload.location = item.location;
+        if (item.lat !== undefined && item.lng !== undefined) {
+          payload.lat = item.lat;
+          payload.lng = item.lng;
+        }
         if (item.deadlineDaysFromNow !== undefined) {
           payload.deadline = new Date(Date.now() + item.deadlineDaysFromNow * DAY_MS);
         }
