@@ -11,6 +11,7 @@ import { db } from '@/lib/firebase';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
+import { cn } from '@/lib/utils';
 
 type FeaturedOpportunityCardProps = {
   opportunity: Opportunity;
@@ -30,7 +31,12 @@ export function FeaturedOpportunityCard({ opportunity, onDeleted, onUpdated }: F
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-card bg-fresh p-6 text-white">
+    <div
+      className={cn(
+        'flex flex-col gap-4 rounded-card bg-fresh p-6 text-white',
+        opportunity.status === 'passed' && 'opacity-60'
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-pill bg-white/20 px-3 py-1 text-xs font-medium">Featured</span>

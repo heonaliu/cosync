@@ -10,6 +10,7 @@ import { OPPORTUNITY_STATUS_LABELS, opportunityStatusColorFor } from '@/lib/colo
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
 import { useSavedOpportunity } from '@/lib/useSavedOpportunity';
+import { cn } from '@/lib/utils';
 
 const TYPE_LABELS: Record<OpportunityType, string> = {
   research: 'Research',
@@ -46,7 +47,7 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
   }
 
   return (
-    <Card className="flex flex-col gap-3">
+    <Card className={cn('flex flex-col gap-3', opportunity.status === 'passed' && 'opacity-60')}>
       {recommendationReason && (
         <div className="flex items-center gap-1.5 text-xs text-sand">
           <IconSparkles className="size-3.5 text-deep-fresh" aria-hidden="true" />

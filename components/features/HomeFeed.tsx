@@ -10,6 +10,7 @@ import { ProjectCard } from '@/components/features/ProjectCard';
 import { QuietProjectNudge } from '@/components/features/QuietProjectNudge';
 import { PillToggle } from '@/components/ui/PillToggle';
 import { getDistanceMiles, isNearbyMatch, RADIUS_OPTIONS_MILES } from '@/lib/location';
+import { isOpportunityOver, sortPassedLast } from '@/lib/opportunities';
 import {
   getFollowedProjects,
   getLatestJournalEntry,
@@ -226,7 +227,7 @@ export function HomeFeed() {
             };
           }),
         ...data.matchedOpportunities
-          .filter((opportunity) => opportunity.posterUid !== user?.uid)
+          .filter((opportunity) => opportunity.posterUid !== user?.uid && !isOpportunityOver(opportunity))
           .map((opportunity): ForYouItem => {
             const matchedTag = opportunity.tags.find((tag) => data.interests.includes(tag));
             return {
@@ -247,7 +248,7 @@ export function HomeFeed() {
   // personalization existed, so skipping onboarding doesn't mean a blank tab.
   const fallbackEntry = data?.entries[0];
   const fallbackProject = data?.projects[0];
-  const fallbackOpportunity = data?.opportunities[0];
+  const fallbackOpportunity = data?.opportunities.find((opportunity) => !isOpportunityOver(opportunity));
   const hasFallback = Boolean(fallbackEntry || fallbackProject || fallbackOpportunity);
 
   // Opportunities tab doesn't run its own query — it lists the same
@@ -262,29 +263,31 @@ export function HomeFeed() {
   const maxRadius = selectedRadii.size > 0 ? Math.max(...selectedRadii) : null;
 
   const nearbyOpportunities = data
-    ? data.opportunities.filter((opportunity) => {
-        if (selectedWeekdays.size > 0) {
-          // Only a deadline gives an opportunity a day-of-week at all — one
-          // without one can't be checked, so it's excluded once this filter
-          // is actively in use rather than guessed at.
-          if (opportunity.deadline === undefined) return false;
-          if (!selectedWeekdays.has(new Date(opportunity.deadline).getDay())) return false;
-        }
+    ? sortPassedLast(
+        data.opportunities.filter((opportunity) => {
+          if (selectedWeekdays.size > 0) {
+            // Only a deadline gives an opportunity a day-of-week at all — one
+            // without one can't be checked, so it's excluded once this filter
+            // is actively in use rather than guessed at.
+            if (opportunity.deadline === undefined) return false;
+            if (!selectedWeekdays.has(new Date(opportunity.deadline).getDay())) return false;
+          }
 
-        const isRemote = opportunity.location?.trim().toLowerCase() === 'remote';
+          const isRemote = opportunity.location?.trim().toLowerCase() === 'remote';
 
-        if (!hasDistanceFilters) {
-          // Nothing touched yet — fall back to the old coarse text match so
-          // the tab isn't empty before the viewer engages the new pills.
-          return userLocation ? isNearbyMatch(userLocation, opportunity.location) : false;
-        }
+          if (!hasDistanceFilters) {
+            // Nothing touched yet — fall back to the old coarse text match so
+            // the tab isn't empty before the viewer engages the new pills.
+            return userLocation ? isNearbyMatch(userLocation, opportunity.location) : false;
+          }
 
-        if (isRemote) return onlineSelected;
-        if (maxRadius === null) return false; // only Online is selected, and this isn't remote
-        if (userLocationLat === null || userLocationLng === null) return false;
-        if (opportunity.lat === undefined || opportunity.lng === undefined) return false;
-        return getDistanceMiles(userLocationLat, userLocationLng, opportunity.lat, opportunity.lng) <= maxRadius;
-      })
+          if (isRemote) return onlineSelected;
+          if (maxRadius === null) return false; // only Online is selected, and this isn't remote
+          if (userLocationLat === null || userLocationLng === null) return false;
+          if (opportunity.lat === undefined || opportunity.lng === undefined) return false;
+          return getDistanceMiles(userLocationLat, userLocationLng, opportunity.lat, opportunity.lng) <= maxRadius;
+        })
+      )
     : [];
 
   return (
@@ -360,7 +363,7 @@ export function HomeFeed() {
               No open opportunities right now — check back soon.
             </div>
           )}
-          {data.opportunities.map((opportunity) => (
+          {sortPassedLast(data.opportunities).map((opportunity) => (
             <OpportunityCard key={opportunity.id} opportunity={opportunity} />
           ))}
         </>

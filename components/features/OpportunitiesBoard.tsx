@@ -8,6 +8,7 @@ import { LocationField, type SavedLocation } from '@/components/features/Locatio
 import { OpportunityListingCard } from '@/components/features/OpportunityListingCard';
 import { PillToggle } from '@/components/ui/PillToggle';
 import { getDistanceMiles, RADIUS_OPTIONS_MILES } from '@/lib/location';
+import { sortPassedLast } from '@/lib/opportunities';
 import { getAllOpportunities, getUserInfo } from '@/lib/queries';
 import type { Opportunity, OpportunityType } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
@@ -136,11 +137,13 @@ export function OpportunitiesBoard() {
     return getDistanceMiles(userLocationLat, userLocationLng, opportunity.lat, opportunity.lng) <= maxRadius;
   }
 
-  const rest = sortByDeadline(
-    all
-      .filter((opportunity) => opportunity.id !== featured?.id)
-      .filter((opportunity) => category === 'All' || opportunity.type === category)
-      .filter(matchesLocationFilter)
+  const rest = sortPassedLast(
+    sortByDeadline(
+      all
+        .filter((opportunity) => opportunity.id !== featured?.id)
+        .filter((opportunity) => category === 'All' || opportunity.type === category)
+        .filter(matchesLocationFilter)
+    )
   );
 
   return (

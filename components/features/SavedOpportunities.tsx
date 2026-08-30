@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { OpportunityListingCard } from '@/components/features/OpportunityListingCard';
+import { sortPassedLast } from '@/lib/opportunities';
 import { getSavedOpportunities } from '@/lib/queries';
 import type { Opportunity } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
@@ -51,7 +52,7 @@ export function SavedOpportunities() {
 
   return (
     <div className="flex flex-col gap-4">
-      {opportunities.map((opportunity) => (
+      {sortPassedLast(opportunities).map((opportunity) => (
         <OpportunityListingCard
           key={opportunity.id}
           opportunity={opportunity}

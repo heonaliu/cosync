@@ -15,6 +15,7 @@ import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 import { useSavedOpportunity } from '@/lib/useSavedOpportunity';
+import { cn } from '@/lib/utils';
 
 const TYPE_LABELS: Record<OpportunityType, string> = {
   research: 'Research',
@@ -86,7 +87,12 @@ export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved, onUp
   }
 
   return (
-    <Card className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <Card
+      className={cn(
+        'flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between',
+        opportunity.status === 'passed' && 'opacity-60'
+      )}
+    >
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Chip label={TYPE_LABELS[opportunity.type]} color={colorForType(opportunity.type)} />
