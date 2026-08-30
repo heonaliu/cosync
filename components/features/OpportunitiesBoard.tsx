@@ -91,6 +91,10 @@ export function OpportunitiesBoard() {
     setOpportunities((previous) => previous?.filter((item) => item.id !== opportunityId) ?? previous);
   }
 
+  function handleUpdated(updated: Opportunity): void {
+    setOpportunities((previous) => previous?.map((item) => (item.id === updated.id ? updated : item)) ?? previous);
+  }
+
   function handleLocationSaved(result: SavedLocation): void {
     setUserLocation(result.location);
     setUserLocationLat(result.lat);
@@ -190,7 +194,9 @@ export function OpportunitiesBoard() {
       {loadError && <p className="text-sm text-sand">{loadError}</p>}
       {!opportunities && !loadError && <p className="text-sm text-sand">Loading opportunities…</p>}
 
-      {featured && <FeaturedOpportunityCard opportunity={featured} onDeleted={handleDeleted} />}
+      {featured && (
+        <FeaturedOpportunityCard opportunity={featured} onDeleted={handleDeleted} onUpdated={handleUpdated} />
+      )}
 
       {opportunities && rest.length === 0 && (
         <p className="text-sm text-oak">
@@ -207,6 +213,7 @@ export function OpportunitiesBoard() {
               key={opportunity.id}
               opportunity={opportunity}
               onDeleted={handleDeleted}
+              onUpdated={handleUpdated}
             />
           ))}
         </div>

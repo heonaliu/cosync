@@ -1,14 +1,15 @@
 'use client';
 
-import { IconTrash } from '@tabler/icons-react';
+import { IconPencil, IconTrash } from '@tabler/icons-react';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
+import { EditOpportunityDialog } from '@/components/features/EditOpportunityDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { accentColorFor, type AccentColor } from '@/lib/color';
+import { accentColorFor, OPPORTUNITY_STATUS_LABELS, opportunityStatusColorFor, type AccentColor } from '@/lib/color';
 import { db } from '@/lib/firebase';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
@@ -52,9 +53,13 @@ type OpportunityListingCardProps = {
   /** Called after a successful un-save — used by /saved so un-saving there
    * removes the card immediately instead of leaving a stale entry. */
   onUnsaved?: (opportunityId: string) => void;
+  /** Called after a successful edit with the fully updated opportunity, so
+   * the parent can splice it into its local list in place — same idea as
+   * onDeleted, but a replace instead of a removal. */
+  onUpdated?: (updated: Opportunity) => void;
 };
 
-export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved }: OpportunityListingCardProps) {
+export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved, onUpdated }: OpportunityListingCardProps) {
   const { user } = useAuth();
   const { isSaved, isLoading, toggle } = useSavedOpportunity(opportunity);
   const isOwnPost = user?.uid === opportunity.posterUid;
@@ -83,9 +88,20 @@ export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved }: Op
   return (
     <Card className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex flex-1 flex-col gap-3">
-        <Chip label={TYPE_LABELS[opportunity.type]} color={colorForType(opportunity.type)} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip label={TYPE_LABELS[opportunity.type]} color={colorForType(opportunity.type)} />
+          {opportunity.status && (
+            <Chip
+              label={OPPORTUNITY_STATUS_LABELS[opportunity.status]}
+              color={opportunityStatusColorFor(opportunity.status)}
+            />
+          )}
+        </div>
 
         {metadataParts.length > 0 && <p className="text-xs text-sand">{metadataParts.join(' · ')}</p>}
+        {opportunity.status === 'soon' && opportunity.openDate && (
+          <p className="text-xs text-sand">Opens {formatDeadline(opportunity.openDate)}</p>
+        )}
 
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium text-ink">{opportunity.title}</h3>
@@ -114,17 +130,28 @@ export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved }: Op
         <Button size="sm">{CTA_LABELS[opportunity.type]}</Button>
 
         {isOwnPost && (
-          <ConfirmDialog
-            trigger={
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="Delete opportunity">
-                <IconTrash className="size-4 text-sand" />
-              </Button>
-            }
-            title="Delete this opportunity?"
-            description="This can't be undone."
-            confirmLabel="Delete"
-            onConfirm={handleDelete}
-          />
+          <>
+            <EditOpportunityDialog
+              opportunity={opportunity}
+              onSaved={(updated) => onUpdated?.(updated)}
+              trigger={
+                <Button type="button" variant="ghost" size="icon-sm" aria-label="Edit opportunity">
+                  <IconPencil className="size-4 text-sand" />
+                </Button>
+              }
+            />
+            <ConfirmDialog
+              trigger={
+                <Button type="button" variant="ghost" size="icon-sm" aria-label="Delete opportunity">
+                  <IconTrash className="size-4 text-sand" />
+                </Button>
+              }
+              title="Delete this opportunity?"
+              description="This can't be undone."
+              confirmLabel="Delete"
+              onConfirm={handleDelete}
+            />
+          </>
         )}
       </div>
     </Card>

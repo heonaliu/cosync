@@ -15,10 +15,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/Input';
+import { PillToggle } from '@/components/ui/PillToggle';
 import { Textarea } from '@/components/ui/Textarea';
+import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { parseDateInputValue } from '@/lib/time';
 import { useAuth } from '@/lib/useAuth';
-import type { OpportunityType } from '@/lib/types';
+import type { OpportunityStatus, OpportunityType } from '@/lib/types';
 
 const TYPE_OPTIONS: { value: OpportunityType; label: string }[] = [
   { value: 'research', label: 'Research' },
@@ -27,6 +30,8 @@ const TYPE_OPTIONS: { value: OpportunityType; label: string }[] = [
   { value: 'mentorship', label: 'Mentorship' },
   { value: 'program', label: 'Program' },
 ];
+
+const STATUS_OPTIONS: OpportunityStatus[] = ['rolling', 'ongoing', 'soon', 'passed'];
 
 type FormState = {
   title: string;
@@ -37,6 +42,8 @@ type FormState = {
   lat: number | null;
   lng: number | null;
   applicationUrl: string;
+  status: OpportunityStatus;
+  openDate: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -48,6 +55,8 @@ const EMPTY_FORM: FormState = {
   lat: null,
   lng: null,
   applicationUrl: '',
+  status: 'rolling',
+  openDate: '',
 };
 
 type AddOpportunityDialogProps = {
@@ -73,6 +82,10 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
       setError('Title and description are required.');
       return;
     }
+    if (form.status === 'soon' && !form.openDate) {
+      setError('"Opening soon" needs an open date — pick when applications start.');
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -86,15 +99,17 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
         type: form.type,
         title: form.title.trim(),
         description: form.description.trim(),
+        status: form.status,
         createdAt: serverTimestamp(),
       };
-      if (form.deadline) payload.deadline = new Date(form.deadline);
+      if (form.deadline) payload.deadline = parseDateInputValue(form.deadline);
       if (form.location.trim()) payload.location = form.location.trim();
       if (form.lat !== null && form.lng !== null) {
         payload.lat = form.lat;
         payload.lng = form.lng;
       }
       if (form.applicationUrl.trim()) payload.applicationUrl = form.applicationUrl.trim();
+      if (form.status === 'soon' && form.openDate) payload.openDate = parseDateInputValue(form.openDate);
 
       await addDoc(collection(db, 'opportunities'), payload);
 
@@ -132,7 +147,7 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="sm:max-w-md"
+        className="max-h-[85vh] overflow-y-auto sm:max-w-md"
         onInteractOutside={(event) => {
           // The Places dropdown is appended straight to <body> by Google's
           // own script, outside this dialog's DOM subtree — so Radix's
@@ -196,6 +211,36 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
               required
             />
           </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink">Status</span>
+            <div className="flex flex-wrap gap-2">
+              {STATUS_OPTIONS.map((option) => (
+                <PillToggle
+                  key={option}
+                  label={OPPORTUNITY_STATUS_LABELS[option]}
+                  isActive={form.status === option}
+                  activeColor="purple"
+                  onClick={() => updateField('status', option)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {form.status === 'soon' && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="opportunity-open-date" className="text-sm text-ink">
+                Open date
+              </label>
+              <Input
+                id="opportunity-open-date"
+                type="date"
+                value={form.openDate}
+                onChange={(event) => updateField('openDate', event.target.value)}
+                required
+              />
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="opportunity-deadline" className="text-sm text-ink">

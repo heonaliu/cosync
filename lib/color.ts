@@ -1,4 +1,4 @@
-import type { ProjectStage } from '@/lib/types';
+import type { OpportunityStatus, ProjectStage } from '@/lib/types';
 
 export type AccentColor = 'sky' | 'amber' | 'sage' | 'lilac' | 'peach';
 
@@ -86,4 +86,28 @@ export const STAGE_LABELS: Record<ProjectStage, string> = {
 
 export function stageColorFor(stage: ProjectStage): AccentColor {
   return STAGE_COLORS[stage];
+}
+
+// Same fixed-per-value approach as stage. 'passed' gets peach rather than
+// reusing one of the three "active" colors — it's not in the same rotation
+// as rolling/ongoing/soon (which all mean "you can still act on this"), and
+// peach isn't one of the named type-chip colors (see TYPE_COLORS in the
+// opportunity card components), so a status chip never looks like it could
+// be mistaken for the type chip next to it.
+const OPPORTUNITY_STATUS_COLORS: Record<OpportunityStatus, AccentColor> = {
+  rolling: 'sky',
+  ongoing: 'sage',
+  soon: 'amber',
+  passed: 'peach',
+};
+
+export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
+  rolling: 'Rolling admissions',
+  ongoing: 'Ongoing',
+  soon: 'Opening soon',
+  passed: 'Passed',
+};
+
+export function opportunityStatusColorFor(status: OpportunityStatus): AccentColor {
+  return OPPORTUNITY_STATUS_COLORS[status];
 }

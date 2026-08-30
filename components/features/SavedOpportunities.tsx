@@ -45,6 +45,10 @@ export function SavedOpportunities() {
     setOpportunities((previous) => previous?.filter((item) => item.id !== opportunityId) ?? previous);
   }
 
+  function handleUpdated(updated: Opportunity): void {
+    setOpportunities((previous) => previous?.map((item) => (item.id === updated.id ? updated : item)) ?? previous);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {opportunities.map((opportunity) => (
@@ -53,6 +57,7 @@ export function SavedOpportunities() {
           opportunity={opportunity}
           onDeleted={handleRemoved}
           onUnsaved={handleRemoved}
+          onUpdated={handleUpdated}
         />
       ))}
     </div>

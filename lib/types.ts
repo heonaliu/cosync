@@ -53,6 +53,10 @@ export type OpportunityType =
   | 'mentorship'
   | 'program';
 
+// The poster's own read on where things stand — distinct from `deadline`
+// (a single application-close date, which can coexist with any status).
+export type OpportunityStatus = 'rolling' | 'ongoing' | 'soon' | 'passed';
+
 export type Opportunity = {
   id: string;
   posterUid: string;
@@ -71,6 +75,14 @@ export type Opportunity = {
   applicationUrl?: string;
   verified: boolean;
   featured?: boolean;
+  /** undefined on opportunities posted before this field existed — the UI
+   * omits a status chip entirely for those rather than guessing one. The
+   * Add/Edit forms always set one going forward (defaulting to 'rolling'). */
+  status?: OpportunityStatus;
+  /** Only meaningful when status === 'soon' — the date applications open.
+   * The Add/Edit forms require this whenever 'soon' is selected, since
+   * "opening soon" with no date isn't a real answer. */
+  openDate?: number;
   createdAt: number;
 };
 

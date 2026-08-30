@@ -26,6 +26,16 @@ export function formatDeadline(ms: number): string {
   return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// A bare `new Date('2026-09-27')` parses as UTC midnight, which
+// toLocaleDateString then renders as the day before in any timezone behind
+// UTC (all of the US) — the exact off-by-one an <input type="date"> value
+// hits every time it round-trips through `new Date(string)`. Parsing the
+// parts directly and constructing a local-midnight Date sidesteps that.
+export function parseDateInputValue(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 // Shared by MyClubCard and ClubHeader so a club's "how active is it" label
 // reads the same everywhere it appears, derived from its most recent
 // discussion rather than a stored/guessable field.

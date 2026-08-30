@@ -198,6 +198,8 @@ async function opportunityFromDoc(docSnap: DocumentSnapshot<DocumentData>): Prom
     applicationUrl: data.applicationUrl,
     verified: Boolean(data.verified),
     featured: Boolean(data.featured),
+    status: data.status,
+    openDate: data.openDate ? toMillis(data.openDate) : undefined,
     createdAt: toMillis(data.createdAt),
   } satisfies Opportunity;
 }

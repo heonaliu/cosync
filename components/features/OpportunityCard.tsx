@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
+import { OPPORTUNITY_STATUS_LABELS, opportunityStatusColorFor } from '@/lib/color';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
 import { useSavedOpportunity } from '@/lib/useSavedOpportunity';
@@ -55,10 +56,19 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
 
       <div className="flex flex-wrap items-center gap-3">
         <Chip label={TYPE_LABELS[opportunity.type]} color="lilac" />
+        {opportunity.status && (
+          <Chip
+            label={OPPORTUNITY_STATUS_LABELS[opportunity.status]}
+            color={opportunityStatusColorFor(opportunity.status)}
+          />
+        )}
         {opportunity.deadline && (
           <span className="whitespace-nowrap text-xs text-sand">
             Deadline: {formatDeadline(opportunity.deadline)}
           </span>
+        )}
+        {opportunity.status === 'soon' && opportunity.openDate && (
+          <span className="whitespace-nowrap text-xs text-sand">Opens {formatDeadline(opportunity.openDate)}</span>
         )}
       </div>
 
