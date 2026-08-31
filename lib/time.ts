@@ -36,6 +36,14 @@ export function parseDateInputValue(value: string): Date {
   return new Date(year, month - 1, day);
 }
 
+// The other direction of parseDateInputValue — local calendar fields, not
+// toISOString() (which converts to UTC first and would reintroduce the same
+// off-by-one this pair exists to avoid).
+export function formatDateInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 // Shared by MyClubCard and ClubHeader so a club's "how active is it" label
 // reads the same everywhere it appears, derived from its most recent
 // discussion rather than a stored/guessable field.

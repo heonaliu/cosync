@@ -14,10 +14,15 @@ export function JournalEntry({ entry }: JournalEntryProps) {
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
-        <Avatar name={entry.authorName} decorative />
+        <Link href={`/profile/${entry.authorUid}`} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh">
+          <Avatar name={entry.authorName} decorative />
+        </Link>
         <div className="flex flex-col">
           <p className="text-sm text-ink">
-            <span className="font-medium">{entry.authorName}</span> posted to{' '}
+            <Link href={`/profile/${entry.authorUid}`} className="font-medium hover:underline">
+              {entry.authorName}
+            </Link>{' '}
+            posted to{' '}
             <Link href={`/projects/${entry.projectId}`} className="font-medium text-purple hover:underline">
               {entry.projectTitle}
             </Link>

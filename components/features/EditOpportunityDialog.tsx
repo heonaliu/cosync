@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { AddressAutocompleteInput } from '@/components/features/AddressAutocompleteInput';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/DatePicker';
 import {
   Dialog,
   DialogContent,
@@ -16,10 +17,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/Input';
 import { PillToggle } from '@/components/ui/PillToggle';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
-import { parseDateInputValue } from '@/lib/time';
+import { formatDateInputValue, parseDateInputValue } from '@/lib/time';
 import type { Opportunity, OpportunityStatus, OpportunityType } from '@/lib/types';
 
 const TYPE_OPTIONS: { value: OpportunityType; label: string }[] = [
@@ -31,12 +33,6 @@ const TYPE_OPTIONS: { value: OpportunityType; label: string }[] = [
 ];
 
 const STATUS_OPTIONS: OpportunityStatus[] = ['rolling', 'ongoing', 'soon', 'passed'];
-
-function toDateInputValue(ms: number): string {
-  const date = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
 
 type EditOpportunityDialogProps = {
   opportunity: Opportunity;
@@ -57,8 +53,8 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
   const [type, setType] = useState<OpportunityType>(opportunity.type);
   const [description, setDescription] = useState(opportunity.description);
   const [status, setStatus] = useState<OpportunityStatus>(opportunity.status ?? 'rolling');
-  const [openDate, setOpenDate] = useState(opportunity.openDate ? toDateInputValue(opportunity.openDate) : '');
-  const [deadline, setDeadline] = useState(opportunity.deadline ? toDateInputValue(opportunity.deadline) : '');
+  const [openDate, setOpenDate] = useState(opportunity.openDate ? formatDateInputValue(new Date(opportunity.openDate)) : '');
+  const [deadline, setDeadline] = useState(opportunity.deadline ? formatDateInputValue(new Date(opportunity.deadline)) : '');
   const [location, setLocation] = useState(opportunity.location ?? '');
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     opportunity.lat !== undefined && opportunity.lng !== undefined
@@ -161,18 +157,18 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
             <label htmlFor="edit-opportunity-type" className="text-sm text-ink">
               Type
             </label>
-            <select
-              id="edit-opportunity-type"
-              value={type}
-              onChange={(event) => setType(event.target.value as OpportunityType)}
-              className="h-10 rounded-pill border border-olive bg-white px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-fresh"
-            >
-              {TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <Select value={type} onValueChange={(value) => setType(value as OpportunityType)}>
+              <SelectTrigger id="edit-opportunity-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -206,12 +202,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
               <label htmlFor="edit-opportunity-open-date" className="text-sm text-ink">
                 Open date
               </label>
-              <Input
-                id="edit-opportunity-open-date"
-                type="date"
-                value={openDate}
-                onChange={(event) => setOpenDate(event.target.value)}
-              />
+              <DatePicker id="edit-opportunity-open-date" value={openDate} onChange={setOpenDate} />
             </div>
           )}
 
@@ -219,12 +210,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
             <label htmlFor="edit-opportunity-deadline" className="text-sm text-ink">
               Deadline <span className="text-sand">(optional — leave blank if rolling)</span>
             </label>
-            <Input
-              id="edit-opportunity-deadline"
-              type="date"
-              value={deadline}
-              onChange={(event) => setDeadline(event.target.value)}
-            />
+            <DatePicker id="edit-opportunity-deadline" value={deadline} onChange={setDeadline} />
           </div>
 
           <div className="flex flex-col gap-1.5">

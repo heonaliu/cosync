@@ -1,3 +1,4 @@
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Input } from '@/components/ui/Input';
 import { WEEKDAY_LABELS } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -38,12 +39,7 @@ export function EventFields({ value, onChange }: EventFieldsProps) {
           <label htmlFor="event-day" className="text-xs text-oak">
             Day
           </label>
-          <Input
-            id="event-day"
-            type="date"
-            value={value.eventDay}
-            onChange={(event) => update('eventDay', event.target.value)}
-          />
+          <DatePicker id="event-day" value={value.eventDay} onChange={(next) => update('eventDay', next)} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="event-time" className="text-xs text-oak">

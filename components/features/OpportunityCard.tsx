@@ -1,6 +1,7 @@
 'use client';
 
 import { IconMapPin, IconShieldCheck, IconSparkles } from '@tabler/icons-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -86,7 +87,12 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
         <div className="flex flex-wrap items-center gap-2 text-sm text-oak">
-          <span className="whitespace-nowrap">Posted by {opportunity.posterName}</span>
+          <span className="whitespace-nowrap">
+            Posted by{' '}
+            <Link href={`/profile/${opportunity.posterUid}`} className="font-medium hover:underline">
+              {opportunity.posterName}
+            </Link>
+          </span>
           {opportunity.posterVerified && (
             <span className="inline-flex items-center gap-1 whitespace-nowrap text-deep-fresh">
               <IconShieldCheck className="size-4" aria-hidden="true" />

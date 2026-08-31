@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { AddressAutocompleteInput } from '@/components/features/AddressAutocompleteInput';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/DatePicker';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/Input';
 import { PillToggle } from '@/components/ui/PillToggle';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
@@ -186,18 +188,18 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
             <label htmlFor="opportunity-type" className="text-sm text-ink">
               Type
             </label>
-            <select
-              id="opportunity-type"
-              value={form.type}
-              onChange={(event) => updateField('type', event.target.value as OpportunityType)}
-              className="h-10 rounded-pill border border-olive bg-white px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-fresh"
-            >
-              {TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <Select value={form.type} onValueChange={(value) => updateField('type', value as OpportunityType)}>
+              <SelectTrigger id="opportunity-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -232,13 +234,7 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
               <label htmlFor="opportunity-open-date" className="text-sm text-ink">
                 Open date
               </label>
-              <Input
-                id="opportunity-open-date"
-                type="date"
-                value={form.openDate}
-                onChange={(event) => updateField('openDate', event.target.value)}
-                required
-              />
+              <DatePicker id="opportunity-open-date" value={form.openDate} onChange={(next) => updateField('openDate', next)} />
             </div>
           )}
 
@@ -246,12 +242,7 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
             <label htmlFor="opportunity-deadline" className="text-sm text-ink">
               Deadline <span className="text-sand">(optional — leave blank if rolling)</span>
             </label>
-            <Input
-              id="opportunity-deadline"
-              type="date"
-              value={form.deadline}
-              onChange={(event) => updateField('deadline', event.target.value)}
-            />
+            <DatePicker id="opportunity-deadline" value={form.deadline} onChange={(next) => updateField('deadline', next)} />
           </div>
 
           <div className="flex flex-col gap-1.5">

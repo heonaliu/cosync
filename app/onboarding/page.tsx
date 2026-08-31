@@ -1,5 +1,6 @@
 'use client';
 
+import { IconBackpack, IconChalkboardTeacher, IconMail } from '@tabler/icons-react';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -8,18 +9,29 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
 import { PillToggle } from '@/components/ui/PillToggle';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { db } from '@/lib/firebase';
 import { PROJECT_CATEGORY_TAGS } from '@/lib/tags';
+import type { UserRole } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
+import { cn } from '@/lib/utils';
 
 // "Prefer not to say" first and pre-selected — the field is genuinely
 // optional, and defaulting to the private option (rather than defaulting to
 // an arbitrary named gender) is what makes that credible.
 const GENDER_OPTIONS = ['Prefer not to say', 'Female', 'Male', 'Non-binary', 'Other'];
 
+type OnboardingRole = Extract<UserRole, 'student' | 'educator'>;
+
 export default function OnboardingPage() {
   const { user, status } = useAuth();
   const router = useRouter();
+
+  // Role is its own step, ahead of everything else — it's a required
+  // choice (unlike interests/gender, which stay skippable), so it isn't
+  // folded into the same form as those.
+  const [step, setStep] = useState<'role' | 'details'>('role');
+  const [role, setRole] = useState<OnboardingRole | null>(null);
 
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [customTags, setCustomTags] = useState<string[]>([]);
@@ -46,14 +58,26 @@ export default function OnboardingPage() {
     setCustomTagInput('');
   }
 
-  // "Skip" writes only the completion marker — interests/gender stay
-  // genuinely unanswered (not defaulted to empty/"prefer not to say" values)
-  // so a skip is distinguishable later from someone who actually answered.
+  // Role has no manual verification system yet — an educator's account is
+  // simply marked unverified until someone manually flips the flag after
+  // they email proof of role. Written on both Skip and Continue below since
+  // it was already answered on the previous step, not something either
+  // button is meant to skip.
+  function roleFields(): Record<string, unknown> {
+    if (role === 'educator') return { role: 'educator', verified: false };
+    if (role === 'student') return { role: 'student' };
+    return {};
+  }
+
+  // "Skip" writes only the completion marker (plus role) — interests/gender
+  // stay genuinely unanswered (not defaulted to empty/"prefer not to say"
+  // values) so a skip is distinguishable later from someone who answered.
   async function handleSkip(): Promise<void> {
     if (!user) return;
     setIsSaving(true);
     setError(null);
     try {
+      await setDoc(doc(db, 'users', user.uid), roleFields(), { merge: true });
       await setDoc(
         doc(db, 'users', user.uid, 'private', 'profile'),
         { onboardedAt: serverTimestamp() },
@@ -71,13 +95,12 @@ export default function OnboardingPage() {
     setIsSaving(true);
     setError(null);
     try {
+      // Interests are public (see profile page) so they live on the main
+      // doc; gender and the completion marker stay on the owner-only path.
+      await setDoc(doc(db, 'users', user.uid), { interests: selectedInterests, ...roleFields() }, { merge: true });
       await setDoc(
         doc(db, 'users', user.uid, 'private', 'profile'),
-        {
-          interests: selectedInterests,
-          gender,
-          onboardedAt: serverTimestamp(),
-        },
+        { gender, onboardedAt: serverTimestamp() },
         { merge: true }
       );
       router.push('/home');
@@ -85,6 +108,73 @@ export default function OnboardingPage() {
       setError(saveError instanceof Error ? saveError.message : 'Something went wrong.');
       setIsSaving(false);
     }
+  }
+
+  if (step === 'role') {
+    return (
+      <PageContainer className="flex flex-col gap-8 py-12">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-[22px] font-medium text-ink">Are you a student or an educator?</h1>
+          <p className="max-w-lg text-sm text-oak">This decides what you can post and how your account is labeled.</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 sm:max-w-lg">
+          <button
+            type="button"
+            onClick={() => setRole('student')}
+            aria-pressed={role === 'student'}
+            className={cn(
+              'flex flex-col items-start gap-3 rounded-card border-2 bg-white p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+              role === 'student' ? 'border-fresh' : 'border-olive hover:border-sand'
+            )}
+          >
+            <span className="flex size-10 items-center justify-center rounded-[12px] bg-sage">
+              <IconBackpack className="size-5 text-deep-fresh" aria-hidden="true" />
+            </span>
+            <span className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-ink">Student</span>
+              <span className="text-sm text-oak">Grades 6–12. Post projects, journal builds, join clubs.</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRole('educator')}
+            aria-pressed={role === 'educator'}
+            className={cn(
+              'flex flex-col items-start gap-3 rounded-card border-2 bg-white p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+              role === 'educator' ? 'border-fresh' : 'border-olive hover:border-sand'
+            )}
+          >
+            <span className="flex size-10 items-center justify-center rounded-[12px] bg-lilac">
+              <IconChalkboardTeacher className="size-5 text-deep-purple" aria-hidden="true" />
+            </span>
+            <span className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-ink">Educator</span>
+              <span className="text-sm text-oak">Post opportunities and mentor through public threads.</span>
+            </span>
+          </button>
+        </div>
+
+        {role === 'educator' && (
+          <div className="flex max-w-lg items-start gap-3 rounded-card bg-amber/40 p-4">
+            <IconMail className="mt-0.5 size-5 shrink-0 text-deep-amber" aria-hidden="true" />
+            <p className="text-sm text-ink">
+              To become a verified educator, email{' '}
+              <a href="mailto:mailcosync@gmail.com" className="font-medium underline underline-offset-2">
+                mailcosync@gmail.com
+              </a>{' '}
+              with proof of your role. Your account is created as an unverified educator until we confirm it —
+              there&apos;s no automated check for this yet.
+            </p>
+          </div>
+        )}
+
+        <Button onClick={() => setStep('details')} disabled={!role}>
+          Continue
+        </Button>
+      </PageContainer>
+    );
   }
 
   return (
@@ -134,18 +224,18 @@ export default function OnboardingPage() {
         <h2 className="text-sm font-medium text-ink">
           Gender <span className="text-sand">(optional)</span>
         </h2>
-        <select
-          value={gender}
-          onChange={(event) => setGender(event.target.value)}
-          aria-label="Gender (optional)"
-          className="h-10 w-full max-w-64 rounded-pill border border-olive bg-white px-4 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-fresh"
-        >
-          {GENDER_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+        <Select value={gender} onValueChange={setGender}>
+          <SelectTrigger aria-label="Gender (optional)" className="max-w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GENDER_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

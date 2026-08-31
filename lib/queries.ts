@@ -59,7 +59,11 @@ function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
 }
 
 export type UserInfo = {
+  uid: string;
   name: string;
+  /** The synced Google account photo (see useAuth's profile sync) — null
+   * until that's run at least once, or if the account has no photo. */
+  photoURL: string | null;
   verified: boolean;
   role: string | null;
   school: string | null;
@@ -76,12 +80,24 @@ export type UserInfo = {
 
 export async function getUserInfo(uid: string): Promise<UserInfo> {
   if (!uid) {
-    return { name: 'Someone', verified: false, role: null, school: null, location: null, locationLat: null, locationLng: null };
+    return {
+      uid: '',
+      name: 'Someone',
+      photoURL: null,
+      verified: false,
+      role: null,
+      school: null,
+      location: null,
+      locationLat: null,
+      locationLng: null,
+    };
   }
   const snapshot = await getDoc(doc(db, 'users', uid));
   const data = snapshot.data();
   return {
+    uid,
     name: (data?.displayName as string | undefined) ?? (data?.handle as string | undefined) ?? 'Someone',
+    photoURL: (data?.photoURL as string | undefined) ?? null,
     verified: Boolean(data?.verified),
     role: (data?.role as string | undefined) ?? null,
     school: (data?.school as string | undefined) ?? null,
@@ -91,15 +107,22 @@ export async function getUserInfo(uid: string): Promise<UserInfo> {
   };
 }
 
-// Interests live at users/{uid}/private/profile, not on the main users/{uid}
-// doc — see firestore.rules for why (same split useOnboardingStatus reads
-// from). Powers Home's "For you" tag-matching; only ever called for the
-// current signed-in user's own uid, since that path's read rule is
-// owner-only.
+// Interests now live on the main users/{uid} doc (matching CLAUDE.md's
+// documented schema) so a profile page can show them to any signed-in
+// visitor, not just the owner — a deliberate product decision, since they
+// used to live at users/{uid}/private/profile specifically to keep them
+// owner-only. The fallback read below is only for uids that onboarded
+// before that change and never re-saved; it's skipped entirely once the
+// main doc has a real answer, so it doesn't add a second read per call in
+// the common case.
 export async function getUserInterests(uid: string): Promise<string[]> {
-  const snapshot = await getDoc(doc(db, 'users', uid, 'private', 'profile'));
+  const snapshot = await getDoc(doc(db, 'users', uid));
   const interests = snapshot.data()?.interests;
-  return Array.isArray(interests) ? interests : [];
+  if (Array.isArray(interests) && interests.length > 0) return interests;
+
+  const legacySnapshot = await getDoc(doc(db, 'users', uid, 'private', 'profile'));
+  const legacyInterests = legacySnapshot.data()?.interests;
+  return Array.isArray(legacyInterests) ? legacyInterests : [];
 }
 
 // Public projects whose tags overlap with the given interests — Home's "For
@@ -423,6 +446,19 @@ export async function getOwnedProjects(uid: string): Promise<Project[]> {
   return snapshot.docs.map(projectFromDoc);
 }
 
+// Unlike getOwnedProjects (every project this uid owns, any visibility —
+// correct for viewing your OWN profile), this is what someone else's
+// profile page uses: the visibility check happens in the query itself via
+// the second where(), not just by hiding non-public ones in the UI, so a
+// private/unlisted project is never actually returned to another viewer in
+// the first place.
+export async function getPublicProjectsByOwner(uid: string): Promise<Project[]> {
+  const snapshot = await getDocs(
+    query(collection(db, 'projects'), where('ownerUid', '==', uid), where('visibility', '==', 'public'))
+  );
+  return snapshot.docs.map(projectFromDoc);
+}
+
 export async function getContributingProjects(uid: string): Promise<Project[]> {
   const snapshot = await getDocs(
     query(collection(db, 'projects'), where('memberUids', 'array-contains', uid))
@@ -449,6 +485,39 @@ export async function getFollowedProjects(uid: string): Promise<Project[]> {
     )
   );
   return snapshot.docs.map(projectFromDoc);
+}
+
+// Following a PERSON (profile page) is a different mechanism than following
+// a PROJECT (getFollowedProjects above) — a project's followers live in a
+// followerUids[] array directly on that one project doc, which works
+// because only that doc's owner needs to ever write it. A person can't be
+// followed the same way: the target user's own users/{uid} doc can only be
+// written by that user (see CLAUDE.md's security rules), so whoever follows
+// them can't be the one to update it. This is exactly why CLAUDE.md's data
+// model calls out a standalone follows/{followerUid}_{followedUid}
+// collection — the follower creates their own doc in a shared collection
+// instead of writing onto the target's doc at all. See useFollowUser.ts for
+// the write side of this.
+export async function getFollowerCount(uid: string): Promise<number> {
+  const snapshot = await getCountFromServer(query(collection(db, 'follows'), where('followedUid', '==', uid)));
+  return snapshot.data().count;
+}
+
+export async function getFollowingCount(uid: string): Promise<number> {
+  const snapshot = await getCountFromServer(query(collection(db, 'follows'), where('followerUid', '==', uid)));
+  return snapshot.data().count;
+}
+
+export async function getFollowers(uid: string): Promise<UserInfo[]> {
+  const snapshot = await getDocs(query(collection(db, 'follows'), where('followedUid', '==', uid)));
+  const followerUids = snapshot.docs.map((docSnap) => docSnap.data().followerUid as string);
+  return Promise.all(followerUids.map((followerUid) => getUserInfo(followerUid)));
+}
+
+export async function getFollowing(uid: string): Promise<UserInfo[]> {
+  const snapshot = await getDocs(query(collection(db, 'follows'), where('followerUid', '==', uid)));
+  const followedUids = snapshot.docs.map((docSnap) => docSnap.data().followedUid as string);
+  return Promise.all(followedUids.map((followedUid) => getUserInfo(followedUid)));
 }
 
 export async function getProject(projectId: string): Promise<Project | null> {

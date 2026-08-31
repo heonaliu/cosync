@@ -31,15 +31,23 @@ function DialogClose({
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
-function DialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+// Deliberately a plain div, not DialogPrimitive.Overlay — Radix's own
+// Overlay renders nothing at all whenever the Dialog's `modal` prop is
+// false (it bails out internally unless context.modal), which several
+// dialogs in this app set specifically so clicks can reach a Google Places
+// dropdown portalled to <body> outside the dialog's own DOM subtree (see
+// AddOpportunityDialog for the full story). That side effect silently left
+// the entire rest of the page clickable behind those dialogs. A plain div
+// isn't subject to that gate, so every dialog gets a real blurred,
+// click-blocking backdrop regardless of `modal`. DialogPortal still mounts
+// and unmounts it at the right time (it wraps every child it's given in
+// its own open-gated Presence, not just Radix's own primitives).
+function DialogOverlay({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <DialogPrimitive.Overlay
+    <div
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 animate-in bg-black/10 fade-in-0 duration-100 supports-backdrop-filter:backdrop-blur-xs",
         className
       )}
       {...props}

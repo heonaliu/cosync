@@ -2,6 +2,7 @@
 
 import { IconHandStop, IconMessageCircle, IconPaperclip } from '@tabler/icons-react';
 import { addDoc, collection, doc, increment, serverTimestamp, updateDoc } from 'firebase/firestore';
+import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -70,8 +71,12 @@ export function JournalEntryCard({ entry, showButtons }: JournalEntryCardProps) 
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <Avatar name={entry.authorName} size="sm" decorative />
-        <span className="text-sm font-medium text-ink">{entry.authorName}</span>
+        <Link href={`/profile/${entry.authorUid}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh">
+          <Avatar name={entry.authorName} size="sm" decorative />
+        </Link>
+        <Link href={`/profile/${entry.authorUid}`} className="text-sm font-medium text-ink hover:underline">
+          {entry.authorName}
+        </Link>
         <span className="text-xs text-sand">{formatRelativeTime(entry.createdAt)}</span>
       </div>
 
