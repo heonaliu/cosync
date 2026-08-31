@@ -520,6 +520,53 @@ export async function getFollowing(uid: string): Promise<UserInfo[]> {
   return Promise.all(followedUids.map((followedUid) => getUserInfo(followedUid)));
 }
 
+export type FollowSuggestion = UserInfo & { topInterest: string | null };
+
+// Home sidebar's "You might follow" — real signed-up students, not a
+// hardcoded placeholder list. Adults (educators/guardians/admins) are
+// excluded: CLAUDE.md is explicit that adults use this app to post
+// opportunities and mentor through public threads, not to accumulate
+// followers, so they shouldn't show up as someone to follow either.
+//
+// Same "fetch a batch, filter in memory" pattern as getDiscoverableClubs —
+// Firestore can't combine a role-equality filter with "not this uid" and
+// "not already followed" in one query, so this over-fetches a bit and
+// trims client-side rather than round-tripping per candidate.
+export async function getFollowSuggestions(viewerUid: string, count: number): Promise<FollowSuggestion[]> {
+  const [usersSnapshot, followsSnapshot] = await Promise.all([
+    getDocs(query(collection(db, 'users'), where('role', '==', 'student'), limit(count * 10 + 20))),
+    getDocs(query(collection(db, 'follows'), where('followerUid', '==', viewerUid))).catch(() => null),
+  ]);
+  const alreadyFollowing = new Set(
+    (followsSnapshot?.docs ?? []).map((docSnap) => docSnap.data().followedUid as string)
+  );
+
+  const suggestions: FollowSuggestion[] = [];
+  for (const docSnap of usersSnapshot.docs) {
+    if (suggestions.length >= count) break;
+    if (docSnap.id === viewerUid || alreadyFollowing.has(docSnap.id)) continue;
+
+    const data = docSnap.data();
+    const name = (data.displayName as string | undefined) ?? (data.handle as string | undefined);
+    if (!name) continue; // hasn't actually signed up/synced a profile yet
+
+    const interests: string[] = Array.isArray(data.interests) ? data.interests : [];
+    suggestions.push({
+      uid: docSnap.id,
+      name,
+      photoURL: (data.photoURL as string | undefined) ?? null,
+      verified: Boolean(data.verified),
+      role: (data.role as string | undefined) ?? null,
+      school: (data.school as string | undefined) ?? null,
+      location: (data.location as string | undefined) ?? null,
+      locationLat: typeof data.locationLat === 'number' ? data.locationLat : null,
+      locationLng: typeof data.locationLng === 'number' ? data.locationLng : null,
+      topInterest: interests[0] ?? null,
+    });
+  }
+  return suggestions;
+}
+
 export async function getProject(projectId: string): Promise<Project | null> {
   const snapshot = await getDoc(doc(db, 'projects', projectId));
   return snapshot.exists() ? projectFromDoc(snapshot as QueryDocumentSnapshot<DocumentData>) : null;
