@@ -16,7 +16,7 @@ import {
 import type { Project } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 
-const FILTERS = ['All', 'Owned', 'Contributing', 'Drafts'] as const;
+const FILTERS = ['All', 'Owned', 'Contributing', 'Private'] as const;
 type Filter = (typeof FILTERS)[number];
 
 type OwnedEntry = {
@@ -51,7 +51,7 @@ export function ProjectsBoard() {
 
       const ownedWithActivity = await Promise.all(
         ownedProjects.map(async (project): Promise<OwnedEntry> => {
-          if (project.visibility === 'draft') {
+          if (project.visibility === 'private') {
             return { project, memberPreviewNames: [], entryCount: 0 };
           }
           const [memberPreviews, entryCount, latestEntry] = await Promise.all([
@@ -98,12 +98,12 @@ export function ProjectsBoard() {
     return <p className="text-sm text-sand">Loading your projects…</p>;
   }
 
-  const activeCount = owned.filter((entry) => entry.project.visibility !== 'draft').length;
-  const draftCount = owned.filter((entry) => entry.project.visibility === 'draft').length;
+  const activeCount = owned.filter((entry) => entry.project.visibility !== 'private').length;
+  const privateCount = owned.filter((entry) => entry.project.visibility === 'private').length;
 
   const showOwned = filter === 'All' || filter === 'Owned';
   const showContributing = filter === 'All' || filter === 'Contributing';
-  const ownedToShow = filter === 'Drafts' ? owned.filter((entry) => entry.project.visibility === 'draft') : owned;
+  const ownedToShow = filter === 'Private' ? owned.filter((entry) => entry.project.visibility === 'private') : owned;
 
   return (
     <div className="flex flex-col gap-6">
@@ -111,7 +111,7 @@ export function ProjectsBoard() {
         <div className="flex flex-col gap-1">
           <h1 className="text-[22px] font-medium text-ink">Your projects</h1>
           <p className="text-sm text-sand">
-            {activeCount} active · {draftCount} draft · contributing to {contributing.length}
+            {activeCount} active · {privateCount} private · contributing to {contributing.length}
           </p>
         </div>
         <NewProjectDialog onCreated={() => setReloadToken((token) => token + 1)} />
@@ -129,9 +129,9 @@ export function ProjectsBoard() {
         ))}
       </div>
 
-      {(showOwned || filter === 'Drafts') && ownedToShow.length > 0 && (
+      {(showOwned || filter === 'Private') && ownedToShow.length > 0 && (
         <section className="flex flex-col gap-4">
-          {filter !== 'Drafts' && <h2 className="text-sm font-medium text-sand">Owned by you</h2>}
+          {filter !== 'Private' && <h2 className="text-sm font-medium text-sand">Owned by you</h2>}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {ownedToShow.map(({ project, memberPreviewNames, entryCount, latestEntryPreview }) => (
               <MyProjectCard
@@ -158,8 +158,8 @@ export function ProjectsBoard() {
         </section>
       )}
 
-      {filter === 'Drafts' && ownedToShow.length === 0 && (
-        <p className="text-sm text-oak">No draft projects — nice, everything you own is published.</p>
+      {filter === 'Private' && ownedToShow.length === 0 && (
+        <p className="text-sm text-oak">No private projects — everything you own is public or unlisted.</p>
       )}
       {filter === 'Owned' && owned.length === 0 && (
         <p className="text-sm text-oak">You haven&apos;t started a project yet — hit &quot;+ New project&quot; above.</p>

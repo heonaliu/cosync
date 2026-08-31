@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 
+import { TutorialButton } from '@/components/features/TutorialButton';
 import { Footer } from '@/components/layout/Footer';
 import { Nav } from '@/components/layout/Nav';
 import { Toaster } from '@/components/ui/sonner';
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <div className="flex-1">{children}</div>
         <Footer />
         <Toaster />
+        <TutorialButton />
       </body>
     </html>
   );

@@ -183,7 +183,7 @@ const DUMMY_PROJECTS: DummyProject[] = [
     description: 'A small badge PCB run with a QR code and an optional NFC chip, for club meetups and hackathons.',
     tags: ['Software'],
     stage: 'idea',
-    visibility: 'draft',
+    visibility: 'private',
     extraMemberUids: [],
     journalEntries: [],
     isMine: true,

@@ -28,9 +28,9 @@ type ProjectDetailProps = {
 const VIEWER_INITIAL_ENTRY_COUNT = 2;
 
 // undefined = still loading, null = doesn't exist / not visible to this
-// viewer (a draft project's read rule denies anyone but the owner/members,
-// so a non-member's getProject() call fails closed into this same state —
-// from their side, a private draft simply isn't there).
+// viewer (a private project's read rule denies anyone but the owner/
+// members, so a non-member's getProject() call fails closed into this same
+// state — from their side, a private project simply isn't there).
 export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const { user } = useAuth();
   const [project, setProject] = useState<Project | null | undefined>(undefined);

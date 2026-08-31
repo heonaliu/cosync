@@ -33,7 +33,7 @@ type ProfileViewProps = {
 const VISIBILITY_LABELS: Record<Project['visibility'], string> = {
   public: 'Public',
   unlisted: 'Unlisted',
-  draft: 'Draft',
+  private: 'Private',
 };
 
 export function ProfileView({ uid }: ProfileViewProps) {

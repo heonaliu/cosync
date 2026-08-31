@@ -31,7 +31,14 @@ function syncProfile(user: User): void {
 
   setDoc(
     doc(db, 'users', user.uid),
-    { displayName: user.displayName ?? null, photoURL: user.photoURL ?? null },
+    {
+      displayName: user.displayName ?? null,
+      // Lowercased so @mention search (a case-sensitive Firestore range
+      // query — see lib/queries.ts's searchUsersByPrefix) can match
+      // regardless of how the searcher capitalizes what they type.
+      displayNameLower: user.displayName?.toLowerCase() ?? null,
+      photoURL: user.photoURL ?? null,
+    },
     { merge: true }
   ).catch((error: unknown) => {
     syncedUids.delete(user.uid);

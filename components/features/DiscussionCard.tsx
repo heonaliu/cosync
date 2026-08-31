@@ -1,11 +1,14 @@
 'use client';
 
 import { IconHandStop, IconMessageCircle, IconShieldCheck } from '@tabler/icons-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 
+import { RichContent } from '@/components/features/RichContent';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
+import { encodeThreadId } from '@/lib/thread';
 import { formatEventDetailLine, formatRelativeTime } from '@/lib/time';
 import type { Discussion } from '@/lib/types';
 import { useCheerDiscussion } from '@/lib/useCheerDiscussion';
@@ -24,6 +27,7 @@ type DiscussionCardProps = {
 export function DiscussionCard({ discussion, muted = false, isMember = false }: DiscussionCardProps) {
   const { hasCheered, cheerCount, toggleCheer } = useCheerDiscussion(discussion);
   const bodyText = discussion.kind === 'event' ? formatEventDetailLine(discussion) : discussion.content;
+  const threadHref = `/thread/${encodeThreadId({ kind: 'discussion', clubId: discussion.clubId, discussionId: discussion.id })}`;
 
   async function handleCheerClick(): Promise<void> {
     try {
@@ -55,14 +59,18 @@ export function DiscussionCard({ discussion, muted = false, isMember = false }: 
 
       <div className="flex flex-col gap-1">
         {discussion.title && <h3 className="text-sm font-medium text-ink">{discussion.title}</h3>}
-        {bodyText && <p className="text-sm text-oak">{bodyText}</p>}
+        {discussion.kind === 'event' ? (
+          bodyText && <p className="text-sm text-oak">{bodyText}</p>
+        ) : (
+          <RichContent content={bodyText} />
+        )}
       </div>
 
       <div className="flex items-center gap-4 text-sm text-oak">
-        <span className="inline-flex items-center gap-1.5">
+        <Link href={threadHref} className="inline-flex items-center gap-1.5 hover:text-ink">
           <IconMessageCircle className="size-4" aria-hidden="true" />
           {discussion.replyCount} repl{discussion.replyCount === 1 ? 'y' : 'ies'}
-        </span>
+        </Link>
         {isMember ? (
           <button
             type="button"

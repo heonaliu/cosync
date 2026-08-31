@@ -1,19 +1,15 @@
 'use client';
 
 import { IconHandStop, IconMessageCircle, IconPaperclip } from '@tabler/icons-react';
-import { addDoc, collection, doc, increment, serverTimestamp, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { RichContent } from '@/components/features/RichContent';
 import { Avatar } from '@/components/ui/Avatar';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
-import { db } from '@/lib/firebase';
+import { encodeThreadId } from '@/lib/thread';
 import { formatRelativeTime } from '@/lib/time';
 import type { JournalEntry } from '@/lib/types';
-import { useAuth } from '@/lib/useAuth';
 import { useCheerJournalEntry } from '@/lib/useCheerJournalEntry';
 import { cn } from '@/lib/utils';
 
@@ -29,12 +25,8 @@ type JournalEntryCardProps = {
 };
 
 export function JournalEntryCard({ entry, showButtons }: JournalEntryCardProps) {
-  const { user } = useAuth();
   const { hasCheered, cheerCount, toggleCheer } = useCheerJournalEntry(entry);
-  const [commentCount, setCommentCount] = useState(entry.commentCount);
-  const [isReplying, setIsReplying] = useState(false);
-  const [replyText, setReplyText] = useState('');
-  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const threadHref = `/thread/${encodeThreadId({ kind: 'journal', projectId: entry.projectId, entryId: entry.id })}`;
 
   async function handleCheerClick(): Promise<void> {
     try {
@@ -42,29 +34,6 @@ export function JournalEntryCard({ entry, showButtons }: JournalEntryCardProps) 
     } catch (error) {
       console.error('Failed to cheer:', error);
       toast.error('Could not send that cheer. Try again.');
-    }
-  }
-
-  async function handleSubmitReply(): Promise<void> {
-    if (!user || !replyText.trim()) return;
-    setIsSubmittingReply(true);
-    try {
-      await addDoc(collection(db, 'projects', entry.projectId, 'journalEntries', entry.id, 'comments'), {
-        authorUid: user.uid,
-        content: replyText.trim(),
-        createdAt: serverTimestamp(),
-      });
-      await updateDoc(doc(db, 'projects', entry.projectId, 'journalEntries', entry.id), {
-        commentCount: increment(1),
-      });
-      setCommentCount((count) => count + 1);
-      setReplyText('');
-      setIsReplying(false);
-    } catch (error) {
-      console.error('Failed to post comment:', error);
-      toast.error('Could not post that comment. Try again.');
-    } finally {
-      setIsSubmittingReply(false);
     }
   }
 
@@ -80,7 +49,7 @@ export function JournalEntryCard({ entry, showButtons }: JournalEntryCardProps) 
         <span className="text-xs text-sand">{formatRelativeTime(entry.createdAt)}</span>
       </div>
 
-      <p className="text-sm text-oak">{entry.content}</p>
+      <RichContent content={entry.content} />
 
       {entry.mediaUrls && entry.mediaUrls.length > 0 && (
         <div className="flex items-center gap-2 rounded-card border border-olive bg-cream px-3 py-2 text-xs text-oak">
@@ -104,53 +73,27 @@ export function JournalEntryCard({ entry, showButtons }: JournalEntryCardProps) 
               <IconHandStop className="size-4" aria-hidden="true" />
               Cheer
             </button>
-            <button
-              type="button"
-              aria-pressed={isReplying}
-              onClick={() => setIsReplying((open) => !open)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-pill border px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
-                isReplying ? 'border-fresh bg-sage font-medium text-deep-fresh' : 'border-olive bg-white text-oak hover:bg-cream'
-              )}
+            <Link
+              href={threadHref}
+              className="inline-flex items-center gap-1.5 rounded-pill border border-olive bg-white px-3 py-1 text-sm text-oak transition-colors hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
             >
               <IconMessageCircle className="size-4" aria-hidden="true" />
               Comment
-            </button>
+            </Link>
           </div>
         )}
 
-        <span className="inline-flex items-center gap-3 text-sm text-oak">
+        <Link href={threadHref} className="inline-flex items-center gap-3 text-sm text-oak hover:text-ink">
           <span className="inline-flex items-center gap-1.5">
             <IconMessageCircle className="size-4" aria-hidden="true" />
-            {commentCount} comment{commentCount === 1 ? '' : 's'}
+            {entry.commentCount} comment{entry.commentCount === 1 ? '' : 's'}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <IconHandStop className="size-4" aria-hidden="true" />
             {cheerCount} cheer{cheerCount === 1 ? '' : 's'}
           </span>
-        </span>
+        </Link>
       </div>
-
-      {isReplying && (
-        <div className="flex items-center gap-2">
-          <Input
-            autoFocus
-            value={replyText}
-            onChange={(event) => setReplyText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                void handleSubmitReply();
-              }
-            }}
-            placeholder="Write a comment…"
-            aria-label="Write a comment"
-          />
-          <Button type="button" size="sm" disabled={isSubmittingReply || !replyText.trim()} onClick={() => void handleSubmitReply()}>
-            {isSubmittingReply ? 'Posting…' : 'Reply'}
-          </Button>
-        </div>
-      )}
     </Card>
   );
 }

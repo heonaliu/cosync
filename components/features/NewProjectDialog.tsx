@@ -43,6 +43,12 @@ const EMPTY_FORM: FormState = {
 
 const STAGE_OPTIONS: ProjectStage[] = ['idea', 'prototyping', 'shipping'];
 
+const VISIBILITY_HINTS: Record<ProjectVisibility, string> = {
+  public: 'Anyone can find and follow it — shown in Discover and feeds.',
+  unlisted: 'Only visible with a direct link — never shown in Discover search or feeds.',
+  private: 'Only visible to you and anyone you invite as a collaborator.',
+};
+
 type NewProjectDialogProps = {
   onCreated?: () => void;
 };
@@ -200,11 +206,19 @@ export function NewProjectDialog({ onCreated }: NewProjectDialogProps) {
                 onClick={() => updateField('visibility', 'public')}
               />
               <PillToggle
-                label="Save as draft"
-                isActive={form.visibility === 'draft'}
-                onClick={() => updateField('visibility', 'draft')}
+                label="Unlisted"
+                isActive={form.visibility === 'unlisted'}
+                activeColor="amber"
+                onClick={() => updateField('visibility', 'unlisted')}
+              />
+              <PillToggle
+                label="Private"
+                isActive={form.visibility === 'private'}
+                activeColor="purple"
+                onClick={() => updateField('visibility', 'private')}
               />
             </div>
+            <p className="text-xs text-sand">{VISIBILITY_HINTS[form.visibility]}</p>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

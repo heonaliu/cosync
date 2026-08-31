@@ -14,7 +14,7 @@ import type { JoinRequest, Project } from '@/lib/types';
 const VISIBILITY_LABELS: Record<Project['visibility'], string> = {
   public: 'public',
   unlisted: 'unlisted',
-  draft: 'private',
+  private: 'private',
 };
 
 export type RelatedProjectEntry = { project: Project; ownerName: string };

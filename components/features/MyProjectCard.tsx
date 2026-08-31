@@ -11,9 +11,9 @@ type MyProjectCardProps = {
   project: Project;
 } & (
   | {
-      /** "Owned by you" card — draft projects render with reduced content
+      /** "Owned by you" card — private projects render with reduced content
        * (dashed border, no avatar/entries row, no latest strip) since
-       * there's nothing to show yet. */
+       * they're not visible to anyone but you yet. */
       kind: 'owned';
       memberPreviewNames: string[];
       entryCount: number;
@@ -30,24 +30,31 @@ type MyProjectCardProps = {
 
 export function MyProjectCard(props: MyProjectCardProps) {
   const { project } = props;
-  const isDraft = props.kind === 'owned' && project.visibility === 'draft';
+  const isPrivate = props.kind === 'owned' && project.visibility === 'private';
 
   return (
     <Link
       href={`/projects/${project.id}`}
       className={cn(
         'flex flex-col gap-3 rounded-card bg-white p-5 transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
-        isDraft && 'border border-dashed border-olive shadow-none hover:shadow-none'
+        isPrivate && 'border border-dashed border-olive shadow-none hover:shadow-none'
       )}
     >
       <div className="flex flex-wrap gap-2">
         {project.tags[0] && <Chip label={project.tags[0]} />}
-        {isDraft ? (
+        {isPrivate ? (
           <span className="inline-flex items-center rounded-pill border border-olive px-3 py-1 text-xs font-medium text-sand">
-            Draft
+            Private
           </span>
         ) : (
-          <Chip label={STAGE_LABELS[project.stage]} color={stageColorFor(project.stage)} />
+          <>
+            <Chip label={STAGE_LABELS[project.stage]} color={stageColorFor(project.stage)} />
+            {project.visibility === 'unlisted' && (
+              <span className="inline-flex items-center rounded-pill border border-olive px-3 py-1 text-xs font-medium text-sand">
+                Unlisted
+              </span>
+            )}
+          </>
         )}
       </div>
 
@@ -57,8 +64,8 @@ export function MyProjectCard(props: MyProjectCardProps) {
       </div>
 
       {props.kind === 'owned' &&
-        (isDraft ? (
-          <p className="text-xs text-sand">Draft · not published</p>
+        (isPrivate ? (
+          <p className="text-xs text-sand">Private · visible only to you and collaborators</p>
         ) : (
           <>
             <div className="flex items-center gap-2">

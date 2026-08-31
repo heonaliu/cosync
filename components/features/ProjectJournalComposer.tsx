@@ -1,14 +1,16 @@
 'use client';
 
 import { IconCode, IconPhoto, IconX } from '@tabler/icons-react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { useState } from 'react';
+import { collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
 import { db } from '@/lib/firebase';
+import { getPastedImageFile, toImageMarkdown, uploadPostImage } from '@/lib/imageUpload';
 import type { Project } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 
@@ -17,12 +19,11 @@ type ProjectJournalComposerProps = {
   onPosted: () => void;
 };
 
-// "Photo"/"Code" don't do a real Storage upload (that needs the SafeSearch
-// moderation pipeline CLAUDE.md requires for uploads, which is out of scope
-// here) — they reveal a small inline input for a filename/URL to attach,
-// same "+Custom" reveal pattern StartClubDialog uses for its tag input,
-// rather than either a fake no-op button or a native window.prompt (which
-// would block browser-automation testing).
+// "Code" still doesn't do a real Storage upload — it reveals a small inline
+// input for a filename/URL to attach, same "+Custom" reveal pattern
+// StartClubDialog uses for its tag input. "Photo" does a real upload now
+// (see lib/imageUpload.ts) and inserts the result as an inline markdown
+// image in `content`, rather than a separate attachment.
 export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComposerProps) {
   const { user } = useAuth();
   const [content, setContent] = useState('');
@@ -30,8 +31,14 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
   const [attachmentInput, setAttachmentInput] = useState('');
   const [showAttachmentInput, setShowAttachmentInput] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canSubmit = content.trim().length > 0;
+  // Pre-generated so an image upload has somewhere to live
+  // (posts/{this id}/...) before the journal entry doc itself is written.
+  const entryRefState = useRef(doc(collection(db, 'projects', project.id, 'journalEntries')));
+
+  const canSubmit = content.trim().length > 0 && !isUploadingImage;
 
   function addAttachment(): void {
     const value = attachmentInput.trim();
@@ -42,6 +49,32 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
 
   function removeAttachment(index: number): void {
     setAttachments((previous) => previous.filter((_, i) => i !== index));
+  }
+
+  async function uploadAndInsert(file: File): Promise<void> {
+    setIsUploadingImage(true);
+    try {
+      const url = await uploadPostImage(entryRefState.current.id, file);
+      setContent((previous) => `${previous}${previous.trim() ? '\n' : ''}${toImageMarkdown(url, file.name)}\n`);
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('Could not upload that image. Try again.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }
+
+  function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>): void {
+    const image = getPastedImageFile(event);
+    if (!image) return;
+    event.preventDefault();
+    void uploadAndInsert(image);
+  }
+
+  function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>): void {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) void uploadAndInsert(file);
   }
 
   async function handlePublish(): Promise<void> {
@@ -57,10 +90,11 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
       };
       if (attachments.length > 0) payload.mediaUrls = attachments;
 
-      await addDoc(collection(db, 'projects', project.id, 'journalEntries'), payload);
+      await setDoc(entryRefState.current, payload);
 
       setContent('');
       setAttachments([]);
+      entryRefState.current = doc(collection(db, 'projects', project.id, 'journalEntries'));
       onPosted();
     } catch (error) {
       console.error('Failed to post update:', error);
@@ -79,12 +113,16 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
 
       <p className="text-sm text-oak">What did you build this week? Even a photo of your workbench counts.</p>
 
-      <Input
+      <Textarea
         value={content}
         onChange={(event) => setContent(event.target.value)}
-        placeholder="Start writing…"
+        onPaste={handlePaste}
+        placeholder="Start writing… paste or attach a photo below"
         aria-label="Update content"
+        className="min-h-20"
       />
+
+      {isUploadingImage && <p className="text-xs text-sand">Uploading image…</p>}
 
       {attachments.length > 0 && (
         <ul className="flex flex-wrap gap-2">
@@ -128,7 +166,8 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setShowAttachmentInput(true)}>
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelected} className="hidden" />
+          <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
             <IconPhoto className="size-4" aria-hidden="true" />
             Photo
           </Button>

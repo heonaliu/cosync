@@ -1,7 +1,7 @@
 export type UserRole = 'student' | 'educator' | 'guardian' | 'admin';
 
 export type ProjectStage = 'idea' | 'prototyping' | 'shipping';
-export type ProjectVisibility = 'public' | 'unlisted' | 'draft';
+export type ProjectVisibility = 'public' | 'unlisted' | 'private';
 
 export type Project = {
   id: string;
@@ -188,5 +188,29 @@ export type JournalEntry = {
    * Discussion.cheeredByUids. */
   cheeredByUids?: string[];
   commentCount: number;
+  createdAt: number;
+};
+
+// A comment/reply on a journal entry or a club discussion — same shape for
+// both, stored in each parent's own subcollection (projects/{id}/
+// journalEntries/{id}/comments, clubs/{id}/discussions/{id}/replies). See
+// lib/thread.ts for the "which one is this" plumbing.
+export type Comment = {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  /** Raw stored text. @mentions are embedded as `@[Full Name](uid)` tokens
+   * and images as standard markdown `![alt](url)` — see
+   * components/features/RichContent.tsx for how both get rendered. */
+  content: string;
+  /** Uids mentioned in this comment, extracted from its @[Name](uid) tokens
+   * at write time — lets a future "who mentioned me" view query without
+   * re-parsing every comment's text. */
+  mentionedUids?: string[];
+  /** Set when this comment is a direct reply to another comment (not just
+   * to the original post) — drives the "replying to @X" label. Denormalized
+   * alongside it so the thread page doesn't need a second lookup per reply. */
+  parentCommentId?: string;
+  parentCommentAuthorName?: string;
   createdAt: number;
 };

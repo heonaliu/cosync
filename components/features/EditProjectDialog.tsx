@@ -29,6 +29,12 @@ type EditProjectDialogProps = {
 
 const STAGE_OPTIONS: ProjectStage[] = ['idea', 'prototyping', 'shipping'];
 
+const VISIBILITY_HINTS: Record<ProjectVisibility, string> = {
+  public: 'Anyone can find and follow it — shown in Discover and feeds.',
+  unlisted: 'Only visible with a direct link — never shown in Discover search or feeds.',
+  private: 'Only visible to you and anyone you invite as a collaborator.',
+};
+
 // Owner-only (enforced by firestore.rules, not just by never being rendered
 // for non-owners) — the header's "Edit project" action. Unlike
 // EditEventDialog there's no delete here; deleting a project isn't part of
@@ -153,11 +159,19 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
             <div className="flex flex-wrap gap-2">
               <PillToggle label="Public" isActive={visibility === 'public'} onClick={() => setVisibility('public')} />
               <PillToggle
-                label="Save as draft"
-                isActive={visibility === 'draft'}
-                onClick={() => setVisibility('draft')}
+                label="Unlisted"
+                isActive={visibility === 'unlisted'}
+                activeColor="amber"
+                onClick={() => setVisibility('unlisted')}
+              />
+              <PillToggle
+                label="Private"
+                isActive={visibility === 'private'}
+                activeColor="purple"
+                onClick={() => setVisibility('private')}
               />
             </div>
+            <p className="text-xs text-sand">{VISIBILITY_HINTS[visibility]}</p>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

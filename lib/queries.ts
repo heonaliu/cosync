@@ -30,7 +30,7 @@ import type {
   ProjectWithStats,
 } from '@/lib/types';
 
-function toMillis(value: unknown): number {
+export function toMillis(value: unknown): number {
   if (value && typeof value === 'object' && 'toMillis' in value) {
     return (value as Timestamp).toMillis();
   }
@@ -595,4 +595,41 @@ export async function getJoinRequests(projectId: string): Promise<JoinRequest[]>
 export async function getOwnJoinRequest(projectId: string, uid: string): Promise<JoinRequest | null> {
   const snapshot = await getDoc(doc(db, 'projects', projectId, 'joinRequests', uid));
   return snapshot.exists() ? joinRequestFromDoc(snapshot as QueryDocumentSnapshot<DocumentData>) : null;
+}
+
+// @mention autocomplete (CommentComposer): a prefix range query on
+// displayNameLower ("jai" matches ["jai", "jai)") — the same trick as
+// any Firestore "starts with" search, since Firestore has no native
+// full-text search. Case-insensitive only because useAuth's syncProfile
+// also writes a lowercased copy of displayName; a user who signed in
+// before that field existed won't be findable until they sign in again.
+// Runs once per keystroke from the composer (debounced there) — see this
+// project's write-up of why that's fine at this app's scale, not something
+// to build caching/server-side search for yet.
+export async function searchUsersByPrefix(prefix: string, count: number): Promise<UserInfo[]> {
+  const normalized = prefix.trim().toLowerCase();
+  if (!normalized) return [];
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'users'),
+      orderBy('displayNameLower'),
+      where('displayNameLower', '>=', normalized),
+      where('displayNameLower', '<', `${normalized}`),
+      limit(count)
+    )
+  );
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      uid: docSnap.id,
+      name: (data.displayName as string | undefined) ?? (data.handle as string | undefined) ?? 'Someone',
+      photoURL: (data.photoURL as string | undefined) ?? null,
+      verified: Boolean(data.verified),
+      role: (data.role as string | undefined) ?? null,
+      school: (data.school as string | undefined) ?? null,
+      location: (data.location as string | undefined) ?? null,
+      locationLat: typeof data.locationLat === 'number' ? data.locationLat : null,
+      locationLng: typeof data.locationLng === 'number' ? data.locationLng : null,
+    } satisfies UserInfo;
+  });
 }
