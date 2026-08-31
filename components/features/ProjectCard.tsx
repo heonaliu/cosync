@@ -24,7 +24,11 @@ export function ProjectCard({
   recommendationReason,
   entryCount,
 }: ProjectCardProps) {
-  const visibleTags = variant === 'feed' ? project.tags : project.tags.slice(0, 1);
+  // .filter(Boolean) guards against a malformed doc with a blank/null slot
+  // in its tags array (e.g. edited directly in the Firebase Console rather
+  // than through the app's own tag picker) rendering a Chip with no label.
+  const cleanTags = project.tags.filter(Boolean);
+  const visibleTags = variant === 'feed' ? cleanTags : cleanTags.slice(0, 1);
   const collaboratorCount = project.memberUids.length;
 
   return (

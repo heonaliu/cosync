@@ -420,9 +420,35 @@ async function journalEntryFromDoc(
 // query. Firestore will throw a "requires an index" error with a console
 // link the first time this runs against a real project — that's expected,
 // not a bug; follow the link once and it won't happen again.
+//
+// The `where('projectVisibility', '==', 'public')` filter isn't optional
+// styling, the way it might look next to getPublicProjects' identical-
+// looking one — it's load-bearing for two different reasons at once:
+//   1. Correctness: this is a *global* feed shown to any signed-in viewer,
+//      so it must never surface an update from an unlisted/private
+//      project, the same as every other public feed query in this file.
+//   2. It's the only thing that makes this query even *legal*. A journal
+//      entry has no visibility of its own — the real rule for it depends on
+//      a get() lookup on its *parent* project, which Firestore's query
+//      planner can't statically prove holds for "the 3 most recent entries
+//      across every project in the database." Without a where() clause
+//      that lines up with a directly-provable branch of the read rule
+//      (see firestore.rules' journalEntries read rule), Firestore rejects
+//      the entire query with "Missing or insufficient permissions" rather
+//      than filtering results per-document — same class of issue
+//      getProjectsByTags/getFollowedProjects/getRelatedProjects already
+//      work around, just for a collectionGroup query instead of a
+//      collection one. `projectVisibility` is denormalized onto each entry
+//      at write time (see ProjectJournalComposer) specifically so this
+//      filter has a real field to match against.
 export async function getRecentJournalEntries(count: number): Promise<JournalEntry[]> {
   const snapshot = await getDocs(
-    query(collectionGroup(db, 'journalEntries'), orderBy('createdAt', 'desc'), limit(count))
+    query(
+      collectionGroup(db, 'journalEntries'),
+      where('projectVisibility', '==', 'public'),
+      orderBy('createdAt', 'desc'),
+      limit(count)
+    )
   );
   return Promise.all(
     snapshot.docs.map(async (docSnap) => {

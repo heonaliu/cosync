@@ -39,7 +39,13 @@ const NAMED_TAG_COLORS: Record<string, AccentColor> = {
 
 // Same seed always maps to the same accent so a person's avatar or a tag's
 // chip color stays stable across the app instead of reshuffling per render.
-export function accentColorFor(seed: string): AccentColor {
+// Guards against a falsy/non-string seed (e.g. a Chip rendered with an
+// undefined label, from a malformed tag written outside the app's own
+// forms) rather than throwing and taking the whole page down over one bad
+// value — same "degrade gracefully" instinct as everywhere else data gets
+// coerced on the way out of Firestore (see lib/queries.ts).
+export function accentColorFor(seed: string | undefined | null): AccentColor {
+  if (!seed) return ACCENT_COLORS[0];
   if (seed in NAMED_TAG_COLORS) return NAMED_TAG_COLORS[seed];
 
   let hash = 0;

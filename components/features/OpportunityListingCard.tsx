@@ -95,7 +95,7 @@ export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved, onUp
     >
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Chip label={TYPE_LABELS[opportunity.type]} color={colorForType(opportunity.type)} />
+          <Chip label={TYPE_LABELS[opportunity.type] ?? 'Opportunity'} color={colorForType(opportunity.type)} />
           {opportunity.status && (
             <Chip
               label={OPPORTUNITY_STATUS_LABELS[opportunity.status]}

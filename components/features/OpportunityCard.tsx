@@ -57,7 +57,7 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Chip label={TYPE_LABELS[opportunity.type]} color="lilac" />
+        <Chip label={TYPE_LABELS[opportunity.type] ?? 'Opportunity'} color="lilac" />
         {opportunity.status && (
           <Chip
             label={OPPORTUNITY_STATUS_LABELS[opportunity.status]}

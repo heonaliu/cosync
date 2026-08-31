@@ -87,6 +87,14 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
         cheerCount: 0,
         commentCount: 0,
         createdAt: serverTimestamp(),
+        // Denormalized copy of the parent project's visibility — see
+        // getRecentJournalEntries' comment for why this needs to exist as
+        // its own field rather than being looked up from the project doc.
+        // A project's visibility can change later (EditProjectDialog) and
+        // this copy won't follow — acceptable staleness for a "recent
+        // activity" feed, matching CLAUDE.md's "denormalize where reads
+        // dominate" guidance.
+        projectVisibility: project.visibility,
       };
       if (attachments.length > 0) payload.mediaUrls = attachments;
 
