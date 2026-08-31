@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# firestore rules notes — for local reference only, never committed
+firestore-rules-additions.txt
+firestore.rules
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
