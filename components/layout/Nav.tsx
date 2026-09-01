@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -50,12 +51,7 @@ export function Nav() {
           href={logoHref}
           className="flex items-center gap-2 rounded-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
         >
-          <span
-            aria-hidden="true"
-            className="flex size-10 items-center justify-center rounded-[12px] bg-fresh text-base font-medium text-white"
-          >
-            C
-          </span>
+          <Image src="/Logo.png" alt="" width={40} height={40} className="size-10" aria-hidden="true" priority />
           <span className="text-base font-medium text-ink">CoSync</span>
         </Link>
 

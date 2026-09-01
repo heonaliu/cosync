@@ -21,8 +21,12 @@ export function ProjectTeamList({ ownerName, collaboratorNames }: ProjectTeamLis
       <h2 className="text-sm font-medium text-ink">Team</h2>
       <ul className="flex flex-col gap-1">
         <li className="text-sm text-oak">{ownerName} · owner</li>
-        {collaboratorNames.map((name) => (
-          <li key={name} className="text-sm text-oak">
+        {collaboratorNames.map((name, index) => (
+          // Index in the key, not just name: this list is names only, no
+          // uids (see ProjectTeamListProps) — two collaborators who never
+          // set a displayName both fall back to getUserInfo's "Someone",
+          // which made key={name} collide and threw a duplicate-key error.
+          <li key={`${name}-${index}`} className="text-sm text-oak">
             {name} · collaborator
           </li>
         ))}

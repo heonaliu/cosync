@@ -8,24 +8,33 @@ import { useAuth, type AuthStatus } from '@/lib/useAuth';
 
 type TutorialState = {
   status: AuthStatus;
-  /** null while the users/{uid} doc is still loading. */
-  hasSeenTutorial: boolean | null;
+  /** null while the users/{uid} doc is still loading. 'unset' means the
+   * field has never been written at all — an account that existed before
+   * this feature shipped, or one that hasn't finished onboarding yet —
+   * and deliberately never auto-opens the tour (see TutorialButton). */
+  hasSeenTutorial: boolean | 'unset' | null;
   markSeen: () => Promise<void>;
 };
 
 // Backs the floating help button's auto-open-once-for-new-users behavior —
 // hasSeenTutorial lives on users/{uid} (not local storage) so it follows a
 // person across devices the same way the rest of their profile does.
+// Onboarding (app/onboarding/page.tsx) is what actually sets it to `false`
+// for the first time, on account creation — this hook never invents a
+// `false` out of a missing field, which is what used to make the tour
+// auto-pop for every pre-existing account instead of only new ones.
 export function useTutorial(): TutorialState {
   const { user, status } = useAuth();
-  const [hasSeenTutorial, setHasSeenTutorial] = useState<boolean | null>(null);
+  const [hasSeenTutorial, setHasSeenTutorial] = useState<boolean | 'unset' | null>(null);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     getDoc(doc(db, 'users', user.uid))
       .then((snapshot) => {
-        if (!cancelled) setHasSeenTutorial(Boolean(snapshot.data()?.hasSeenTutorial));
+        if (cancelled) return;
+        const raw = snapshot.data()?.hasSeenTutorial;
+        setHasSeenTutorial(raw === undefined ? 'unset' : Boolean(raw));
       })
       .catch((error: unknown) => console.error('Failed to load tutorial state:', error));
     return () => {

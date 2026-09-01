@@ -16,6 +16,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'CoSync',
   description: 'A home for young makers.',
+  icons: {
+    icon: '/Logo.png',
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

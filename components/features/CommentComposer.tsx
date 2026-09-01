@@ -1,17 +1,16 @@
 'use client';
 
 import { IconPhoto, IconX } from '@tabler/icons-react';
-import { doc } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/Textarea';
-import { getPastedImageFile, toImageMarkdown, uploadPostImage } from '@/lib/imageUpload';
+import { getPastedImageFile, toImageMarkdown, uploadImage } from '@/lib/imageUpload';
 import { extractMentionedUids, toMentionToken } from '@/lib/mentions';
 import { searchUsersByPrefix, type UserInfo } from '@/lib/queries';
-import { commentsCollection, postComment, type ThreadRef } from '@/lib/thread';
+import { postComment, type ThreadRef } from '@/lib/thread';
 import { useAuth } from '@/lib/useAuth';
 
 export type ReplyTarget = { commentId: string; authorName: string } | null;
@@ -41,11 +40,6 @@ export function CommentComposer({ threadRef, replyTarget, onClearReplyTarget, on
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchTokenRef = useRef(0);
-
-  // Pre-generated so a pasted/uploaded image has somewhere to live
-  // (posts/{this id}/...) before the comment doc itself is written — see
-  // lib/thread.ts's postComment, which setDoc()s onto this exact ref.
-  const commentRefState = useRef(doc(commentsCollection(threadRef)));
 
   const canSubmit = content.trim().length > 0 && !isUploadingImage;
 
@@ -108,7 +102,7 @@ export function CommentComposer({ threadRef, replyTarget, onClearReplyTarget, on
   async function uploadAndInsert(file: File): Promise<void> {
     setIsUploadingImage(true);
     try {
-      const url = await uploadPostImage(commentRefState.current.id, file);
+      const url = await uploadImage(file);
       setContent((previous) => `${previous}${previous.trim() ? '\n' : ''}${toImageMarkdown(url, file.name)}\n`);
     } catch (error) {
       console.error('Failed to upload image:', error);
@@ -135,7 +129,7 @@ export function CommentComposer({ threadRef, replyTarget, onClearReplyTarget, on
     if (!user || !canSubmit) return;
     setIsPosting(true);
     try {
-      await postComment(threadRef, commentRefState.current, {
+      await postComment(threadRef, {
         authorUid: user.uid,
         authorName: user.displayName ?? 'Someone',
         content: content.trim(),
@@ -144,7 +138,6 @@ export function CommentComposer({ threadRef, replyTarget, onClearReplyTarget, on
         parentCommentAuthorName: replyTarget?.authorName,
       });
       setContent('');
-      commentRefState.current = doc(commentsCollection(threadRef));
       onClearReplyTarget();
       onPosted();
     } catch (error) {

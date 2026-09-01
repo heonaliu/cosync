@@ -1,4 +1,5 @@
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -7,7 +8,6 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  setDoc,
   updateDoc,
   type CollectionReference,
   type DocumentData,
@@ -158,15 +158,8 @@ export type NewComment = {
   parentCommentAuthorName?: string;
 };
 
-// Posts a comment/reply at a pre-generated doc ref (see
-// CommentComposer.tsx — the ref is created up front so an image upload has
-// somewhere to live before the comment doc itself is written), then bumps
-// the parent post's comment/reply count.
-export async function postComment(
-  ref: ThreadRef,
-  commentRef: DocumentReference<DocumentData>,
-  comment: NewComment
-): Promise<void> {
+// Posts a comment/reply, then bumps the parent post's comment/reply count.
+export async function postComment(ref: ThreadRef, comment: NewComment): Promise<void> {
   const payload: Record<string, unknown> = {
     authorUid: comment.authorUid,
     authorName: comment.authorName,
@@ -179,6 +172,6 @@ export async function postComment(
     payload.parentCommentAuthorName = comment.parentCommentAuthorName;
   }
 
-  await setDoc(commentRef, payload);
+  await addDoc(commentsCollection(ref), payload);
   await updateDoc(postDocRef(ref), { [commentCountField(ref)]: increment(1) });
 }

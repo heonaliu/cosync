@@ -77,7 +77,7 @@ export default function OnboardingPage() {
     setIsSaving(true);
     setError(null);
     try {
-      await setDoc(doc(db, 'users', user.uid), roleFields(), { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { hasSeenTutorial: false, ...roleFields() }, { merge: true });
       await setDoc(
         doc(db, 'users', user.uid, 'private', 'profile'),
         { onboardedAt: serverTimestamp() },
@@ -97,7 +97,15 @@ export default function OnboardingPage() {
     try {
       // Interests are public (see profile page) so they live on the main
       // doc; gender and the completion marker stay on the owner-only path.
-      await setDoc(doc(db, 'users', user.uid), { interests: selectedInterests, ...roleFields() }, { merge: true });
+      // hasSeenTutorial: false (not just left unset) is what makes the
+      // floating help button's tour auto-open once for a genuinely new
+      // account — see lib/useTutorial.ts for why "unset" and "false" have
+      // to mean different things here.
+      await setDoc(
+        doc(db, 'users', user.uid),
+        { interests: selectedInterests, hasSeenTutorial: false, ...roleFields() },
+        { merge: true }
+      );
       await setDoc(
         doc(db, 'users', user.uid, 'private', 'profile'),
         { gender, onboardedAt: serverTimestamp() },
