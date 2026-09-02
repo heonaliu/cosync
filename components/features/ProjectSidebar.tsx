@@ -8,6 +8,7 @@ import { ProjectInterestedList } from '@/components/features/ProjectInterestedLi
 import { ProjectLookingForCard } from '@/components/features/ProjectLookingForCard';
 import { ProjectTeamList } from '@/components/features/ProjectTeamList';
 import { Button } from '@/components/ui/button';
+import type { UserInfo } from '@/lib/queries';
 import { formatRelativeTime } from '@/lib/time';
 import type { JoinRequest, Project } from '@/lib/types';
 
@@ -24,7 +25,7 @@ type ProjectSidebarProps = {
   isOwner: boolean;
   isMember: boolean;
   ownerName: string;
-  collaboratorNames: string[];
+  collaborators: UserInfo[];
   entryCount: number;
   joinRequests: JoinRequest[];
   relatedProjects: RelatedProjectEntry[];
@@ -37,7 +38,7 @@ export function ProjectSidebar({
   isOwner,
   isMember,
   ownerName,
-  collaboratorNames,
+  collaborators,
   entryCount,
   joinRequests,
   relatedProjects,
@@ -54,7 +55,16 @@ export function ProjectSidebar({
 
       {isOwner && <ProjectInterestedList projectId={project.id} requests={joinRequests} onResolved={onJoinRequestResolved} />}
 
-      {isMember && <ProjectTeamList ownerName={ownerName} collaboratorNames={collaboratorNames} />}
+      {isMember && (
+        <ProjectTeamList
+          projectId={project.id}
+          projectTitle={project.title}
+          ownerUid={project.ownerUid}
+          ownerName={ownerName}
+          collaborators={collaborators}
+          isOwner={isOwner}
+        />
+      )}
 
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-medium text-ink">About</h2>

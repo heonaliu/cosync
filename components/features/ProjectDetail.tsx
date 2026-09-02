@@ -13,6 +13,7 @@ import {
   getProjectMemberPreviews,
   getRelatedProjects,
   getUserInfo,
+  type UserInfo,
 } from '@/lib/queries';
 import type { JoinRequest, JournalEntry, Project } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
@@ -36,7 +37,11 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [ownerName, setOwnerName] = useState('');
-  const [collaboratorNames, setCollaboratorNames] = useState<string[]>([]);
+  // collaborators keeps the uid alongside each name (ProjectTeamList links
+  // to profiles); collaboratorNames is derived from it for ProjectHeader,
+  // which only ever joins names into a sentence and has no use for uids.
+  const [collaborators, setCollaborators] = useState<UserInfo[]>([]);
+  const collaboratorNames = collaborators.map((info) => info.name);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [relatedProjects, setRelatedProjects] = useState<RelatedProjectEntry[]>([]);
   const [showAllEntries, setShowAllEntries] = useState(false);
@@ -82,7 +87,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         setProject(fetchedProject);
         setEntries(fetchedEntries);
         setOwnerName(owner.name);
-        setCollaboratorNames(collaboratorInfos.map((info) => info.name));
+        setCollaborators(collaboratorInfos);
         setJoinRequests(requests);
         setRelatedProjects(relatedWithOwners);
       }
@@ -160,7 +165,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             isOwner={isOwner}
             isMember={isMember}
             ownerName={ownerName}
-            collaboratorNames={collaboratorNames}
+            collaborators={collaborators}
             entryCount={entries.length}
             joinRequests={joinRequests}
             relatedProjects={relatedProjects}

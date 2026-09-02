@@ -670,6 +670,20 @@ export async function getOwnJoinRequest(projectId: string, uid: string): Promise
   return snapshot.exists() ? joinRequestFromDoc(snapshot as QueryDocumentSnapshot<DocumentData>) : null;
 }
 
+// Invite-by-email (InviteDialog): an exact-match lookup only — no partial/
+// live search, deliberately, so this can only ever answer "does this one
+// specific address have an account," never let someone browse/enumerate
+// other users' emails the way a prefix search would. See useAuth.ts's
+// syncProfile for where emailLower gets written.
+export async function findUserByEmail(email: string): Promise<UserInfo | null> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+  const snapshot = await getDocs(query(collection(db, 'users'), where('emailLower', '==', normalized), limit(1)));
+  const docSnap = snapshot.docs[0];
+  if (!docSnap) return null;
+  return getUserInfo(docSnap.id);
+}
+
 // @mention autocomplete (CommentComposer): a prefix range query on
 // displayNameLower ("jai" matches ["jai", "jai)") — the same trick as
 // any Firestore "starts with" search, since Firestore has no native

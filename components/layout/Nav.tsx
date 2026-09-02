@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/Input';
 import { signOutUser } from '@/lib/auth';
 import { useAuth } from '@/lib/useAuth';
+import { useUnseenNotificationCount } from '@/lib/useNotifications';
 import { cn } from '@/lib/utils';
 
 const MARKETING_LINKS = [
@@ -36,6 +37,7 @@ export function Nav() {
   const { user, status } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const unseenNotificationCount = useUnseenNotificationCount();
 
   const logoHref = status === 'authed' ? '/home' : '/';
 
@@ -100,13 +102,24 @@ export function Nav() {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label="Account menu"
-                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+                  aria-label={unseenNotificationCount > 0 ? 'Account menu — unread notifications' : 'Account menu'}
+                  className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
                 >
                   <Avatar name={user.displayName ?? user.email ?? 'You'} decorative />
+                  {unseenNotificationCount > 0 && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-0 right-0 size-2.5 rounded-full bg-fresh ring-2 ring-cream"
+                    />
+                  )}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/notifications">
+                    Notifications{unseenNotificationCount > 0 ? ` (${unseenNotificationCount})` : ''}
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href={`/profile/${user.uid}`}>Profile</Link>
                 </DropdownMenuItem>

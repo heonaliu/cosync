@@ -37,6 +37,12 @@ function syncProfile(user: User): void {
       // query — see lib/queries.ts's searchUsersByPrefix) can match
       // regardless of how the searcher capitalizes what they type.
       displayNameLower: user.displayName?.toLowerCase() ?? null,
+      // Exact-match only (see lib/queries.ts's findUserByEmail and the
+      // invite-by-email feature) — deliberately not a prefix-searchable
+      // field the way displayNameLower is. This is the only place a raw
+      // email address enters Firestore at all; a project owner can look up
+      // one exact address to invite them, never browse/enumerate others'.
+      emailLower: user.email?.toLowerCase() ?? null,
       photoURL: user.photoURL ?? null,
     },
     { merge: true }

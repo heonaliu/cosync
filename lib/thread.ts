@@ -53,6 +53,7 @@ export type ThreadData = {
   authorName: string;
   content: string;
   createdAt: number;
+  editedAt?: number;
   cheerCount: number;
   commentCount: number;
   backHref: string;
@@ -103,6 +104,7 @@ export async function getThreadData(threadId: string): Promise<ThreadData | null
       authorName: author.name,
       content: entryData.content ?? '',
       createdAt: toMillis(entryData.createdAt),
+      editedAt: entryData.editedAt ? toMillis(entryData.editedAt) : undefined,
       cheerCount: entryData.cheerCount ?? 0,
       commentCount: entryData.commentCount ?? 0,
       backHref: `/projects/${ref.projectId}`,
@@ -124,11 +126,22 @@ export async function getThreadData(threadId: string): Promise<ThreadData | null
     authorName: author.name,
     content: discussionData.content ?? '',
     createdAt: toMillis(discussionData.createdAt),
+    editedAt: discussionData.editedAt ? toMillis(discussionData.editedAt) : undefined,
     cheerCount: discussionData.cheerCount ?? 0,
     commentCount: discussionData.replyCount ?? 0,
     backHref: `/clubs/${ref.clubId}`,
     backLabel: (clubSnap.data().name as string | undefined) ?? 'the club',
   };
+}
+
+// Author-only edit of the post itself (see firestore.rules — the author
+// already has full write on their own journalEntry/discussion doc, so this
+// needs no new rule). editedAt is set on every edit and never cleared,
+// which is what ThreadView's "(edited)" label keys off.
+export async function updateThreadPost(ref: ThreadRef, edit: { content: string; title?: string }): Promise<void> {
+  const payload: Record<string, unknown> = { content: edit.content, editedAt: serverTimestamp() };
+  if (ref.kind === 'discussion' && edit.title !== undefined) payload.title = edit.title;
+  await updateDoc(postDocRef(ref), payload);
 }
 
 function commentFromDoc(id: string, data: DocumentData): Comment {

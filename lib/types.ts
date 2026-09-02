@@ -214,3 +214,40 @@ export type Comment = {
   parentCommentAuthorName?: string;
   createdAt: number;
 };
+
+// projects/{projectId}/invites/{inviteeUid} — an owner-initiated invite to
+// collaborate, distinct from JoinRequest (which is the other direction:
+// someone asking to join). Doc id is the invitee's own uid, same "id IS the
+// person" pattern as JoinRequest, so there's at most one open invite per
+// person per project and "have I already invited them" is a getDoc by id.
+export type ProjectInvite = {
+  inviteeUid: string;
+  inviterUid: string;
+  inviterName: string;
+  projectId: string;
+  projectTitle: string;
+  createdAt: number;
+};
+
+export type NotificationKind = 'projectInvite';
+
+// notifications/{uid}/items/{notificationId} — see CLAUDE.md's data model.
+// Denormalizes enough to render the notification list without a second read
+// per item (actorName, plus kind-specific display fields), same "denormalize
+// where reads dominate" reasoning as everywhere else in this schema.
+export type Notification = {
+  id: string;
+  kind: NotificationKind;
+  /** Uid of whoever triggered this — also what the create rule checks
+   * against request.auth.uid, so nobody can write a notification
+   * impersonating a different actor. */
+  actorUid: string;
+  actorName: string;
+  /** The thing this notification is about — a projectId for 'projectInvite'. */
+  sourceRef: string;
+  /** Extra display text specific to the kind — the project's title, for
+   * 'projectInvite'. */
+  sourceLabel: string;
+  seen: boolean;
+  createdAt: number;
+};
