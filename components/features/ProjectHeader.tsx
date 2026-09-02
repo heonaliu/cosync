@@ -1,12 +1,14 @@
 'use client';
 
-import { IconSettings, IconShare } from '@tabler/icons-react';
+import { IconExternalLink, IconSettings, IconShare } from '@tabler/icons-react';
 import { deleteDoc, doc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { EditProjectDialog } from '@/components/features/EditProjectDialog';
+import { ProjectTeamModal } from '@/components/features/ProjectTeamModal';
 import { ReportButton } from '@/components/features/ReportButton';
 import { AvatarStack } from '@/components/ui/AvatarStack';
 import { Button } from '@/components/ui/button';
@@ -20,8 +22,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { STAGE_LABELS, stageColorFor } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { isProjectManager } from '@/lib/projectRoles';
+import type { UserInfo } from '@/lib/queries';
 import { formatNameList, formatRelativeTime } from '@/lib/time';
 import type { Project } from '@/lib/types';
+import { useAuth } from '@/lib/useAuth';
 import { useFollowProject } from '@/lib/useFollowProject';
 
 type ProjectHeaderProps = {
@@ -29,7 +34,9 @@ type ProjectHeaderProps = {
   isOwner: boolean;
   isMember: boolean;
   ownerName: string;
+  ownerPhotoURL: string | null;
   collaboratorNames: string[];
+  collaborators: UserInfo[];
   onProjectChanged: () => void;
 };
 
@@ -48,11 +55,16 @@ export function ProjectHeader({
   isOwner,
   isMember,
   ownerName,
+  ownerPhotoURL,
   collaboratorNames,
+  collaborators,
   onProjectChanged,
 }: ProjectHeaderProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const { isFollowing, toggleFollow } = useFollowProject(project);
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const isManager = Boolean(user && isProjectManager(project, user.uid));
 
   const avatarNames = [ownerName, ...collaboratorNames];
   const namesLine = isMember
@@ -162,13 +174,42 @@ export function ProjectHeader({
 
       <p className="max-w-2xl text-sm text-oak">{project.description}</p>
 
+      {project.stage === 'launched' && project.liveUrl && (
+        <Link
+          href={project.liveUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-sage px-3 py-1.5 text-sm font-medium text-deep-fresh hover:underline"
+        >
+          <IconExternalLink className="size-4" aria-hidden="true" />
+          Visit live site
+        </Link>
+      )}
+
       <div className="flex items-center gap-3">
-        <AvatarStack names={avatarNames} size="sm" />
+        <button
+          type="button"
+          onClick={() => setTeamModalOpen(true)}
+          aria-label="See who's working on this project"
+          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+        >
+          <AvatarStack names={avatarNames} size="sm" />
+        </button>
         <p className="text-sm text-sand">
-          {namesLine} · started {formatRelativeTime(project.createdAt)}
-          {!isMember && ` · ${project.followerCount} following`}
+          {namesLine} · started {formatRelativeTime(project.createdAt)} · {project.followerCount} following
         </p>
       </div>
+
+      <ProjectTeamModal
+        project={project}
+        ownerName={ownerName}
+        ownerPhotoURL={ownerPhotoURL}
+        collaborators={collaborators}
+        isManager={isManager}
+        open={teamModalOpen}
+        onOpenChange={setTeamModalOpen}
+        onChanged={onProjectChanged}
+      />
     </div>
   );
 }

@@ -1,12 +1,15 @@
 'use client';
 
-import { IconHandStop, IconMessageCircle, IconPaperclip } from '@tabler/icons-react';
+import { IconHandStop, IconMessageCircle, IconPaperclip, IconTrash } from '@tabler/icons-react';
+import { deleteDoc, doc } from 'firebase/firestore';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
 import { RichContent } from '@/components/features/RichContent';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { db } from '@/lib/firebase';
 import { encodeThreadId } from '@/lib/thread';
 import { formatRelativeTime } from '@/lib/time';
 import type { JournalEntry } from '@/lib/types';
@@ -15,16 +18,14 @@ import { cn } from '@/lib/utils';
 
 type JournalEntryCardProps = {
   entry: JournalEntry;
-  /** False when the current viewer is this project's owner — this product's
-   * rule is that the person running their own project's build journal
-   * doesn't cheer/comment on their own log, so the whole journal renders
-   * counts-only for them regardless of which collaborator wrote which
-   * entry. True for a collaborator or a viewer, on every entry. See
-   * ProjectDetail for where this is computed. */
-  showButtons: boolean;
+  /** Author, or the project's owner/co-owner ("co-owners... can delete
+   * posts, owners can delete all posts"). See ProjectDetail for where this
+   * is computed. */
+  canDelete: boolean;
+  onDeleted?: () => void;
 };
 
-export function JournalEntryCard({ entry, showButtons }: JournalEntryCardProps) {
+export function JournalEntryCard({ entry, canDelete, onDeleted }: JournalEntryCardProps) {
   const { hasCheered, cheerCount, toggleCheer } = useCheerJournalEntry(entry);
   const threadHref = `/thread/${encodeThreadId({ kind: 'journal', projectId: entry.projectId, entryId: entry.id })}`;
 
@@ -37,16 +38,46 @@ export function JournalEntryCard({ entry, showButtons }: JournalEntryCardProps) 
     }
   }
 
+  async function handleDelete(): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'projects', entry.projectId, 'journalEntries', entry.id));
+      onDeleted?.();
+    } catch (error) {
+      console.error('Failed to delete entry:', error);
+      toast.error('Could not delete that update. Try again.');
+    }
+  }
+
   return (
     <Card className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Link href={`/profile/${entry.authorUid}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh">
-          <Avatar name={entry.authorName} size="sm" decorative />
-        </Link>
-        <Link href={`/profile/${entry.authorUid}`} className="text-sm font-medium text-ink hover:underline">
-          {entry.authorName}
-        </Link>
-        <span className="text-xs text-sand">{formatRelativeTime(entry.createdAt)}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Link href={`/profile/${entry.authorUid}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh">
+            <Avatar name={entry.authorName} size="sm" decorative />
+          </Link>
+          <Link href={`/profile/${entry.authorUid}`} className="text-sm font-medium text-ink hover:underline">
+            {entry.authorName}
+          </Link>
+          <span className="text-xs text-sand">{formatRelativeTime(entry.createdAt)}</span>
+        </div>
+
+        {canDelete && (
+          <ConfirmDialog
+            trigger={
+              <button
+                type="button"
+                aria-label="Delete update"
+                className="rounded-full p-1 text-sand hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+              >
+                <IconTrash className="size-4" aria-hidden="true" />
+              </button>
+            }
+            title="Delete this update?"
+            description="This removes it and its comments for everyone. This can't be undone."
+            confirmLabel="Delete"
+            onConfirm={handleDelete}
+          />
+        )}
       </div>
 
       <RichContent content={entry.content} />
@@ -59,29 +90,27 @@ export function JournalEntryCard({ entry, showButtons }: JournalEntryCardProps) 
       )}
 
       <div className="flex flex-wrap items-center gap-4">
-        {showButtons && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-pressed={hasCheered}
-              onClick={() => void handleCheerClick()}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-pill border px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
-                hasCheered ? 'border-fresh bg-sage font-medium text-deep-fresh' : 'border-olive bg-white text-oak hover:bg-cream'
-              )}
-            >
-              <IconHandStop className="size-4" aria-hidden="true" />
-              Cheer
-            </button>
-            <Link
-              href={threadHref}
-              className="inline-flex items-center gap-1.5 rounded-pill border border-olive bg-white px-3 py-1 text-sm text-oak transition-colors hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
-            >
-              <IconMessageCircle className="size-4" aria-hidden="true" />
-              Comment
-            </Link>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-pressed={hasCheered}
+            onClick={() => void handleCheerClick()}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-pill border px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+              hasCheered ? 'border-fresh bg-sage font-medium text-deep-fresh' : 'border-olive bg-white text-oak hover:bg-cream'
+            )}
+          >
+            <IconHandStop className="size-4" aria-hidden="true" />
+            Cheer
+          </button>
+          <Link
+            href={threadHref}
+            className="inline-flex items-center gap-1.5 rounded-pill border border-olive bg-white px-3 py-1 text-sm text-oak transition-colors hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+          >
+            <IconMessageCircle className="size-4" aria-hidden="true" />
+            Comment
+          </Link>
+        </div>
 
         <Link href={threadHref} className="inline-flex items-center gap-3 text-sm text-oak hover:text-ink">
           <span className="inline-flex items-center gap-1.5">

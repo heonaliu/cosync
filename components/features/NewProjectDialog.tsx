@@ -58,6 +58,7 @@ export function NewProjectDialog({ onCreated }: NewProjectDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [customTagInput, setCustomTagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +71,12 @@ export function NewProjectDialog({ onCreated }: NewProjectDialogProps) {
       ...previous,
       tags: previous.tags.includes(tag) ? previous.tags.filter((item) => item !== tag) : [...previous.tags, tag],
     }));
+  }
+
+  function addCustomTag(): void {
+    const tag = customTagInput.trim();
+    if (tag) setForm((previous) => (previous.tags.includes(tag) ? previous : { ...previous, tags: [...previous.tags, tag] }));
+    setCustomTagInput('');
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -179,6 +186,29 @@ export function NewProjectDialog({ onCreated }: NewProjectDialogProps) {
                   onClick={() => toggleTag(tag)}
                 />
               ))}
+              {form.tags
+                .filter((tag) => !(PROJECT_CATEGORY_TAGS as readonly string[]).includes(tag))
+                .map((tag) => (
+                  <PillToggle key={tag} label={tag} isActive activeColor="purple" onClick={() => toggleTag(tag)} />
+                ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={customTagInput}
+                onChange={(event) => setCustomTagInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addCustomTag();
+                  }
+                }}
+                placeholder="Add your own"
+                className="h-8 max-w-48"
+                aria-label="Add your own tag"
+              />
+              <Button type="button" variant="outline" size="sm" onClick={addCustomTag}>
+                Add
+              </Button>
             </div>
           </div>
 

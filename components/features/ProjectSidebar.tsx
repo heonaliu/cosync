@@ -24,6 +24,7 @@ type ProjectSidebarProps = {
   project: Project;
   isOwner: boolean;
   isMember: boolean;
+  isManager: boolean;
   ownerName: string;
   collaborators: UserInfo[];
   entryCount: number;
@@ -37,6 +38,7 @@ export function ProjectSidebar({
   project,
   isOwner,
   isMember,
+  isManager,
   ownerName,
   collaborators,
   entryCount,
@@ -57,12 +59,10 @@ export function ProjectSidebar({
 
       {isMember && (
         <ProjectTeamList
-          projectId={project.id}
-          projectTitle={project.title}
-          ownerUid={project.ownerUid}
+          project={project}
           ownerName={ownerName}
           collaborators={collaborators}
-          isOwner={isOwner}
+          isManager={isManager}
         />
       )}
 

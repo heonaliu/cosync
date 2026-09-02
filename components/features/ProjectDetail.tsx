@@ -6,6 +6,7 @@ import { JournalEntryCard } from '@/components/features/JournalEntryCard';
 import { ProjectHeader } from '@/components/features/ProjectHeader';
 import { ProjectJournalComposer } from '@/components/features/ProjectJournalComposer';
 import { ProjectSidebar, type RelatedProjectEntry } from '@/components/features/ProjectSidebar';
+import { isProjectManager } from '@/lib/projectRoles';
 import {
   getJoinRequests,
   getProject,
@@ -37,6 +38,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [ownerName, setOwnerName] = useState('');
+  const [ownerPhotoURL, setOwnerPhotoURL] = useState<string | null>(null);
   // collaborators keeps the uid alongside each name (ProjectTeamList links
   // to profiles); collaboratorNames is derived from it for ProjectHeader,
   // which only ever joins names into a sentence and has no use for uids.
@@ -87,6 +89,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         setProject(fetchedProject);
         setEntries(fetchedEntries);
         setOwnerName(owner.name);
+        setOwnerPhotoURL(owner.photoURL);
         setCollaborators(collaboratorInfos);
         setJoinRequests(requests);
         setRelatedProjects(relatedWithOwners);
@@ -116,10 +119,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
   const isOwner = Boolean(user && user.uid === project.ownerUid);
   const isMember = isOwner || Boolean(user && project.memberUids.includes(user.uid));
-  // See JournalEntryCard's showButtons doc comment — the owner's own view of
-  // their project's journal is counts-only everywhere, regardless of which
-  // collaborator authored which entry.
-  const showJournalButtons = !isOwner;
+  const isManager = Boolean(user && isProjectManager(project, user.uid));
   const visibleEntries = isMember || showAllEntries ? entries : entries.slice(0, VIEWER_INITIAL_ENTRY_COUNT);
   const hiddenEntryCount = entries.length - visibleEntries.length;
 
@@ -130,7 +130,9 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         isOwner={isOwner}
         isMember={isMember}
         ownerName={ownerName}
+        ownerPhotoURL={ownerPhotoURL}
         collaboratorNames={collaboratorNames}
+        collaborators={collaborators}
         onProjectChanged={handleChanged}
       />
 
@@ -143,7 +145,12 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             {entries.length === 0 && <p className="text-sm text-oak">No updates yet.</p>}
             <div className="flex flex-col gap-4">
               {visibleEntries.map((entry) => (
-                <JournalEntryCard key={entry.id} entry={entry} showButtons={showJournalButtons} />
+                <JournalEntryCard
+                  key={entry.id}
+                  entry={entry}
+                  canDelete={Boolean(user) && (entry.authorUid === user?.uid || isManager)}
+                  onDeleted={handleChanged}
+                />
               ))}
             </div>
             {!isMember && hiddenEntryCount > 0 && (
@@ -164,6 +171,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             project={project}
             isOwner={isOwner}
             isMember={isMember}
+            isManager={isManager}
             ownerName={ownerName}
             collaborators={collaborators}
             entryCount={entries.length}

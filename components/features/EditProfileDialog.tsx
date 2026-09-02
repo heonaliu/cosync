@@ -15,23 +15,35 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/Input';
 import { PillToggle } from '@/components/ui/PillToggle';
+import { Textarea } from '@/components/ui/Textarea';
 import { db } from '@/lib/firebase';
 import { PROJECT_CATEGORY_TAGS } from '@/lib/tags';
+
+const BIO_MAX_LENGTH = 280;
 
 type EditProfileDialogProps = {
   uid: string;
   currentDisplayName: string;
   currentInterests: string[];
+  currentBio: string;
   trigger: React.ReactNode;
-  onSaved: (updated: { displayName: string; interests: string[] }) => void;
+  onSaved: (updated: { displayName: string; interests: string[]; bio: string }) => void;
 };
 
 // Shared by the header's "Edit" button and the Interests section itself
 // (clicking either opens this same dialog) — one editor for both fields
 // instead of two separate flows that could drift apart.
-export function EditProfileDialog({ uid, currentDisplayName, currentInterests, trigger, onSaved }: EditProfileDialogProps) {
+export function EditProfileDialog({
+  uid,
+  currentDisplayName,
+  currentInterests,
+  currentBio,
+  trigger,
+  onSaved,
+}: EditProfileDialogProps) {
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(currentDisplayName);
+  const [bio, setBio] = useState(currentBio);
   const [selectedInterests, setSelectedInterests] = useState<string[]>(currentInterests);
   const [customTagInput, setCustomTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -51,6 +63,7 @@ export function EditProfileDialog({ uid, currentDisplayName, currentInterests, t
       // dialog has already mounted once.
       setDisplayName(currentDisplayName);
       setSelectedInterests(currentInterests);
+      setBio(currentBio);
       setError(null);
     }
   }
@@ -76,8 +89,13 @@ export function EditProfileDialog({ uid, currentDisplayName, currentInterests, t
     setError(null);
     try {
       const trimmedName = displayName.trim();
-      await setDoc(doc(db, 'users', uid), { displayName: trimmedName, interests: selectedInterests }, { merge: true });
-      onSaved({ displayName: trimmedName, interests: selectedInterests });
+      const trimmedBio = bio.trim();
+      await setDoc(
+        doc(db, 'users', uid),
+        { displayName: trimmedName, interests: selectedInterests, bio: trimmedBio },
+        { merge: true }
+      );
+      onSaved({ displayName: trimmedName, interests: selectedInterests, bio: trimmedBio });
       setOpen(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Something went wrong.');
@@ -101,6 +119,22 @@ export function EditProfileDialog({ uid, currentDisplayName, currentInterests, t
               Display name
             </label>
             <Input id="edit-profile-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="edit-profile-bio" className="text-sm text-ink">
+              Bio <span className="text-sand">(optional)</span>
+            </label>
+            <Textarea
+              id="edit-profile-bio"
+              value={bio}
+              onChange={(event) => setBio(event.target.value.slice(0, BIO_MAX_LENGTH))}
+              placeholder="A couple sentences about what you're into or working on."
+              className="min-h-20"
+            />
+            <span className="self-end text-xs text-sand">
+              {bio.length}/{BIO_MAX_LENGTH}
+            </span>
           </div>
 
           <div className="flex flex-col gap-3">

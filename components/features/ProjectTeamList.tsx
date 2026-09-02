@@ -4,31 +4,34 @@ import { IconUserPlus } from '@tabler/icons-react';
 import Link from 'next/link';
 
 import { InviteDialog } from '@/components/features/InviteDialog';
+import { getMemberRole } from '@/lib/projectRoles';
 import type { UserInfo } from '@/lib/queries';
+import type { Project } from '@/lib/types';
+
+const ROLE_LABELS = { coOwner: 'co-owner', collaborator: 'collaborator' } as const;
 
 type ProjectTeamListProps = {
-  projectId: string;
-  projectTitle: string;
-  ownerUid: string;
+  project: Project;
   ownerName: string;
   collaborators: UserInfo[];
-  /** Gates the Invite button — sending an invite is an owner-only write
-   * (see firestore.rules' projects/{id}/invites create rule), so a
-   * non-owner collaborator never sees an affordance that would just fail. */
-  isOwner: boolean;
+  /** Gates the Invite button — sending an invite is an owner/co-owner-only
+   * write (see firestore.rules' projects/{id}/invites create rule). */
+  isManager: boolean;
 };
 
 // Member-visible (owner + collaborators), not shown to viewers — Piece 3's
-// sidebar has "Related" in this slot instead.
-export function ProjectTeamList({ projectId, projectTitle, ownerUid, ownerName, collaborators, isOwner }: ProjectTeamListProps) {
-  const existingMemberUids = [ownerUid, ...collaborators.map((person) => person.uid)];
+// sidebar has "Related" in this slot instead. Full role management (change
+// role, remove someone) lives in ProjectTeamModal, opened from the avatar
+// circles in ProjectHeader — this is the glanceable summary + quick invite.
+export function ProjectTeamList({ project, ownerName, collaborators, isManager }: ProjectTeamListProps) {
+  const existingMemberUids = [project.ownerUid, ...collaborators.map((person) => person.uid)];
 
   return (
     <div className="flex flex-col gap-2">
       <h2 className="text-sm font-medium text-ink">Team</h2>
       <ul className="flex flex-col gap-1">
         <li className="text-sm text-oak">
-          <Link href={`/profile/${ownerUid}`} className="text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh">
+          <Link href={`/profile/${project.ownerUid}`} className="text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh">
             {ownerName}
           </Link>{' '}
           · owner
@@ -41,14 +44,14 @@ export function ProjectTeamList({ projectId, projectTitle, ownerUid, ownerName, 
             >
               {person.name}
             </Link>{' '}
-            · collaborator
+            · {ROLE_LABELS[getMemberRole(project, person.uid) as 'coOwner' | 'collaborator']}
           </li>
         ))}
       </ul>
-      {isOwner && (
+      {isManager && (
         <InviteDialog
-          projectId={projectId}
-          projectTitle={projectTitle}
+          projectId={project.id}
+          projectTitle={project.title}
           existingMemberUids={existingMemberUids}
           trigger={
             <button

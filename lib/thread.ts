@@ -1,5 +1,7 @@
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -15,6 +17,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { sendMentionNotification } from '@/lib/notifications';
 import { getUserInfo, toMillis } from '@/lib/queries';
 import type { Comment } from '@/lib/types';
 
@@ -55,6 +58,7 @@ export type ThreadData = {
   createdAt: number;
   editedAt?: number;
   cheerCount: number;
+  cheeredByUids: string[];
   commentCount: number;
   backHref: string;
   backLabel: string;
@@ -106,6 +110,7 @@ export async function getThreadData(threadId: string): Promise<ThreadData | null
       createdAt: toMillis(entryData.createdAt),
       editedAt: entryData.editedAt ? toMillis(entryData.editedAt) : undefined,
       cheerCount: entryData.cheerCount ?? 0,
+      cheeredByUids: Array.isArray(entryData.cheeredByUids) ? entryData.cheeredByUids : [],
       commentCount: entryData.commentCount ?? 0,
       backHref: `/projects/${ref.projectId}`,
       backLabel: (projectSnap.data().title as string | undefined) ?? 'the project',
@@ -128,10 +133,21 @@ export async function getThreadData(threadId: string): Promise<ThreadData | null
     createdAt: toMillis(discussionData.createdAt),
     editedAt: discussionData.editedAt ? toMillis(discussionData.editedAt) : undefined,
     cheerCount: discussionData.cheerCount ?? 0,
+    cheeredByUids: Array.isArray(discussionData.cheeredByUids) ? discussionData.cheeredByUids : [],
     commentCount: discussionData.replyCount ?? 0,
     backHref: `/clubs/${ref.clubId}`,
     backLabel: (clubSnap.data().name as string | undefined) ?? 'the club',
   };
+}
+
+// Cheering your own post is allowed — there's no author-exclusion here,
+// unlike the old JournalEntryCard behavior this replaces. Same optimistic-
+// toggle field pair every other cheer button in this app uses.
+export async function toggleThreadCheer(ref: ThreadRef, uid: string, nextCheered: boolean): Promise<void> {
+  await updateDoc(postDocRef(ref), {
+    cheeredByUids: nextCheered ? arrayUnion(uid) : arrayRemove(uid),
+    cheerCount: increment(nextCheered ? 1 : -1),
+  });
 }
 
 // Author-only edit of the post itself (see firestore.rules — the author
@@ -187,4 +203,15 @@ export async function postComment(ref: ThreadRef, comment: NewComment): Promise<
 
   await addDoc(commentsCollection(ref), payload);
   await updateDoc(postDocRef(ref), { [commentCountField(ref)]: increment(1) });
+
+  // Best-effort — a failed notification write shouldn't undo or error out
+  // a comment that already posted successfully.
+  const threadId = encodeThreadId(ref);
+  await Promise.allSettled(
+    comment.mentionedUids
+      .filter((uid) => uid !== comment.authorUid)
+      .map((uid) =>
+        sendMentionNotification({ toUid: uid, actorUid: comment.authorUid, actorName: comment.authorName, threadId })
+      )
+  );
 }

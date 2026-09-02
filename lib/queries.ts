@@ -47,10 +47,12 @@ function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
     description: data.description ?? '',
     tags: Array.isArray(data.tags) ? data.tags : [],
     stage: data.stage ?? 'idea',
+    liveUrl: data.liveUrl,
     visibility: data.visibility ?? 'public',
     lookingFor: data.lookingFor,
     links: Array.isArray(data.links) ? data.links : undefined,
     memberUids: Array.isArray(data.memberUids) ? data.memberUids : [],
+    memberRoles: data.memberRoles,
     followerCount: data.followerCount ?? 0,
     followerUids: Array.isArray(data.followerUids) ? data.followerUids : [],
     createdAt: toMillis(data.createdAt),
@@ -76,6 +78,8 @@ export type UserInfo = {
    * null whenever location is null, or was set before this field existed. */
   locationLat: number | null;
   locationLng: number | null;
+  /** Free-text "about me," editable via EditProfileDialog. null until set. */
+  bio: string | null;
 };
 
 export async function getUserInfo(uid: string): Promise<UserInfo> {
@@ -90,6 +94,7 @@ export async function getUserInfo(uid: string): Promise<UserInfo> {
       location: null,
       locationLat: null,
       locationLng: null,
+      bio: null,
     };
   }
   const snapshot = await getDoc(doc(db, 'users', uid));
@@ -104,6 +109,7 @@ export async function getUserInfo(uid: string): Promise<UserInfo> {
     location: (data?.location as string | undefined) ?? null,
     locationLat: typeof data?.locationLat === 'number' ? data.locationLat : null,
     locationLng: typeof data?.locationLng === 'number' ? data.locationLng : null,
+    bio: (data?.bio as string | undefined) ?? null,
   };
 }
 
@@ -259,6 +265,16 @@ export async function getSavedOpportunities(uid: string): Promise<Opportunity[]>
   const saveSnapshot = await getDocs(collection(db, 'users', uid, 'savedOpportunities'));
   const opportunityIds = saveSnapshot.docs.map((docSnap) => docSnap.id);
 
+  const opportunityDocs = await Promise.all(
+    opportunityIds.map((opportunityId) => getDoc(doc(db, 'opportunities', opportunityId)))
+  );
+  const opportunities = await Promise.all(opportunityDocs.map(opportunityFromDoc));
+  return opportunities.filter(isOpportunity);
+}
+
+// Pinned opportunities (profile page) — same "fetch each id individually"
+// shape as getSavedOpportunities, since pins are just a list of ids too.
+export async function getOpportunitiesByIds(opportunityIds: string[]): Promise<Opportunity[]> {
   const opportunityDocs = await Promise.all(
     opportunityIds.map((opportunityId) => getDoc(doc(db, 'opportunities', opportunityId)))
   );
@@ -587,6 +603,7 @@ export async function getFollowSuggestions(viewerUid: string, count: number): Pr
       location: (data.location as string | undefined) ?? null,
       locationLat: typeof data.locationLat === 'number' ? data.locationLat : null,
       locationLng: typeof data.locationLng === 'number' ? data.locationLng : null,
+      bio: (data.bio as string | undefined) ?? null,
       topInterest: interests[0] ?? null,
     });
   }
@@ -717,6 +734,7 @@ export async function searchUsersByPrefix(prefix: string, count: number): Promis
       location: (data.location as string | undefined) ?? null,
       locationLat: typeof data.locationLat === 'number' ? data.locationLat : null,
       locationLng: typeof data.locationLng === 'number' ? data.locationLng : null,
+      bio: (data.bio as string | undefined) ?? null,
     } satisfies UserInfo;
   });
 }

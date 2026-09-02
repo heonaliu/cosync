@@ -2,7 +2,7 @@
 
 import { IconHandStop, IconMessageCircle, IconPencil } from '@tabler/icons-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { CommentComposer, type ReplyTarget } from '@/components/features/CommentComposer';
@@ -13,10 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { getThreadData, listComments, updateThreadPost, type ThreadData } from '@/lib/thread';
+import { getThreadData, listComments, toggleThreadCheer, updateThreadPost, type ThreadData } from '@/lib/thread';
 import { formatRelativeTime } from '@/lib/time';
 import type { Comment } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
+import { cn } from '@/lib/utils';
 
 type ThreadViewProps = {
   postId: string;
@@ -36,6 +37,9 @@ export function ThreadView({ postId }: ThreadViewProps) {
   const [editContent, setEditContent] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [hasCheered, setHasCheered] = useState(false);
+  const [cheerCount, setCheerCount] = useState(0);
+  const hasToggledCheer = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +54,10 @@ export function ThreadView({ postId }: ThreadViewProps) {
       if (!cancelled) {
         setThread(fetchedThread);
         setComments(fetchedComments);
+        if (!hasToggledCheer.current) {
+          setCheerCount(fetchedThread.cheerCount);
+          setHasCheered(Boolean(user && fetchedThread.cheeredByUids.includes(user.uid)));
+        }
       }
     }
 
@@ -61,7 +69,23 @@ export function ThreadView({ postId }: ThreadViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [postId, reloadToken]);
+  }, [postId, reloadToken, user]);
+
+  async function handleCheerClick(): Promise<void> {
+    if (!user || !thread) return;
+    hasToggledCheer.current = true;
+    const next = !hasCheered;
+    setHasCheered(next);
+    setCheerCount((count) => count + (next ? 1 : -1));
+    try {
+      await toggleThreadCheer(thread.ref, user.uid, next);
+    } catch (error) {
+      setHasCheered(!next);
+      setCheerCount((count) => count + (next ? -1 : 1));
+      console.error('Failed to cheer:', error);
+      toast.error('Could not send that cheer. Try again.');
+    }
+  }
 
   function startEditing(): void {
     if (!thread) return;
@@ -169,10 +193,18 @@ export function ThreadView({ postId }: ThreadViewProps) {
         )}
 
         <div className="flex items-center gap-4 text-sm text-oak">
-          <span className="inline-flex items-center gap-1.5">
+          <button
+            type="button"
+            aria-pressed={hasCheered}
+            onClick={() => void handleCheerClick()}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-pill border px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+              hasCheered ? 'border-fresh bg-sage font-medium text-deep-fresh' : 'border-olive bg-white text-oak hover:bg-cream'
+            )}
+          >
             <IconHandStop className="size-4" aria-hidden="true" />
-            {thread.cheerCount} cheer{thread.cheerCount === 1 ? '' : 's'}
-          </span>
+            {cheerCount} cheer{cheerCount === 1 ? '' : 's'}
+          </button>
           <span className="inline-flex items-center gap-1.5">
             <IconMessageCircle className="size-4" aria-hidden="true" />
             {comments.length} repl{comments.length === 1 ? 'y' : 'ies'}

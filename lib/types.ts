@@ -1,7 +1,16 @@
 export type UserRole = 'student' | 'educator' | 'guardian' | 'admin';
 
-export type ProjectStage = 'idea' | 'prototyping' | 'shipping';
+export type ProjectStage = 'idea' | 'prototyping' | 'shipping' | 'launched';
 export type ProjectVisibility = 'public' | 'unlisted' | 'private';
+
+// Owner isn't in here — it's ownerUid on the project itself, and can't be
+// reassigned. coOwner has every management privilege short of that:
+// add/remove members, delete anyone's post, change other members' roles.
+// collaborator can only post updates and edit/delete their own posts. A
+// memberUid with no entry here is implicitly 'collaborator' — see
+// lib/projectRoles.ts's getMemberRole, which is the single source of truth
+// for that default (so the app and firestore.rules agree on it).
+export type ProjectMemberRole = 'collaborator' | 'coOwner';
 
 export type Project = {
   id: string;
@@ -11,6 +20,8 @@ export type Project = {
   description: string;
   tags: string[];
   stage: ProjectStage;
+  /** Only meaningful once stage is 'launched' — the live URL to link to. */
+  liveUrl?: string;
   visibility: ProjectVisibility;
   lookingFor?: { role: string; description: string };
   /** Reference links (repo, demo video, BOM, ...) shown in the detail page's
@@ -18,6 +29,7 @@ export type Project = {
    * Club.pinnedResources. */
   links?: { label: string; url: string }[];
   memberUids: string[];
+  memberRoles?: Record<string, ProjectMemberRole>;
   followerCount: number;
   /** Uids who've followed — same toggle-not-just-increment pattern as
    * Discussion.cheeredByUids, so "+ Follow project" can show each viewer
@@ -229,7 +241,7 @@ export type ProjectInvite = {
   createdAt: number;
 };
 
-export type NotificationKind = 'projectInvite';
+export type NotificationKind = 'projectInvite' | 'mention';
 
 // notifications/{uid}/items/{notificationId} — see CLAUDE.md's data model.
 // Denormalizes enough to render the notification list without a second read

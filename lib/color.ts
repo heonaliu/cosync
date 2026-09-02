@@ -76,18 +76,22 @@ export function accentClasses(color: AccentColor, options?: { inverted?: boolean
 
 // A project's stage pill has a fixed color per stage (unlike tags, which
 // hash) — idea reads as "just started" (green), prototyping/shipping both
-// read as "actively moving" (amber), differentiated by their label text
-// rather than a fourth color.
+// read as "actively moving" (amber), launched gets its own green (the
+// finish line, distinct from idea's "just started" green by label alone,
+// same differentiate-by-text-not-a-fifth-color approach as prototyping/
+// shipping already use).
 const STAGE_COLORS: Record<ProjectStage, AccentColor> = {
   idea: 'sage',
   prototyping: 'amber',
   shipping: 'amber',
+  launched: 'sky',
 };
 
 export const STAGE_LABELS: Record<ProjectStage, string> = {
   idea: 'Idea',
   prototyping: 'Prototyping',
   shipping: 'Shipping',
+  launched: 'Launched',
 };
 
 export function stageColorFor(stage: ProjectStage): AccentColor {

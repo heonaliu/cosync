@@ -12,9 +12,6 @@ import { formatRelativeTime } from '@/lib/time';
 import type { Notification } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 
-// Only one notification kind exists today ('projectInvite'), so this
-// renders it directly rather than building a generic kind → renderer
-// dispatch for a single case.
 export function NotificationsView() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
@@ -91,29 +88,45 @@ export function NotificationsView() {
             <div className="flex items-center gap-3">
               <Avatar name={notification.actorName} size="sm" decorative />
               <div className="flex flex-col">
-                <p className="text-sm text-ink">
-                  <span className="font-medium">{notification.actorName}</span> invited you to collaborate on{' '}
-                  <Link href={`/projects/${notification.sourceRef}`} className="font-medium hover:underline">
-                    {notification.sourceLabel}
-                  </Link>
-                </p>
+                {notification.kind === 'mention' ? (
+                  <p className="text-sm text-ink">
+                    <span className="font-medium">{notification.actorName}</span>{' '}
+                    <Link href={`/thread/${notification.sourceRef}`} className="font-medium hover:underline">
+                      mentioned you in a reply
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="text-sm text-ink">
+                    <span className="font-medium">{notification.actorName}</span> invited you to collaborate on{' '}
+                    <Link href={`/projects/${notification.sourceRef}`} className="font-medium hover:underline">
+                      {notification.sourceLabel}
+                    </Link>
+                  </p>
+                )}
                 <span className="text-xs text-sand">{formatRelativeTime(notification.createdAt)}</span>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={busyId === notification.id}
-                onClick={() => void handleDecline(notification)}
-              >
-                Decline
-              </Button>
-              <Button type="button" size="sm" disabled={busyId === notification.id} onClick={() => void handleAccept(notification)}>
-                Accept
-              </Button>
-            </div>
+            {notification.kind === 'projectInvite' && (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busyId === notification.id}
+                  onClick={() => void handleDecline(notification)}
+                >
+                  Decline
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busyId === notification.id}
+                  onClick={() => void handleAccept(notification)}
+                >
+                  Accept
+                </Button>
+              </div>
+            )}
           </Card>
         </li>
       ))}

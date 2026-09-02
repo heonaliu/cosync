@@ -1,30 +1,34 @@
 'use client';
 
-import { IconShieldCheck } from '@tabler/icons-react';
+import { IconPinFilled, IconShieldCheck } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { EditProfileDialog } from '@/components/features/EditProfileDialog';
 import { FollowListDialog } from '@/components/features/FollowListDialog';
+import { OpportunityListingCard } from '@/components/features/OpportunityListingCard';
 import { ProjectCard } from '@/components/features/ProjectCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/Chip';
+import { getPinnedIds, setProjectPinned } from '@/lib/pins';
+import { formatShortName } from '@/lib/profile';
 import {
   getFollowerCount,
   getFollowers,
   getFollowing,
   getFollowingCount,
+  getOpportunitiesByIds,
   getOwnedProjects,
   getPublicProjectsByOwner,
   getUserInfo,
   getUserInterests,
   type UserInfo,
 } from '@/lib/queries';
-import { formatShortName } from '@/lib/profile';
-import type { Project } from '@/lib/types';
+import type { Opportunity, Project } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 import { useFollowUser } from '@/lib/useFollowUser';
+import { cn } from '@/lib/utils';
 
 type ProfileViewProps = {
   uid: string;
@@ -45,6 +49,8 @@ export function ProfileView({ uid }: ProfileViewProps) {
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [projects, setProjects] = useState<Project[] | null>(null);
+  const [pinnedProjectIds, setPinnedProjectIds] = useState<string[]>([]);
+  const [pinnedOpportunities, setPinnedOpportunities] = useState<Opportunity[]>([]);
 
   const { isFollowing, isLoading: isFollowLoading, toggleFollow } = useFollowUser(uid);
 
@@ -63,7 +69,7 @@ export function ProfileView({ uid }: ProfileViewProps) {
     // permission-denied there should degrade the follower/following counts
     // to 0 rather than taking the whole profile down with it.
     async function load(): Promise<void> {
-      const [fetchedInfo, fetchedInterests, followers, following, fetchedProjects] = await Promise.all([
+      const [fetchedInfo, fetchedInterests, followers, following, fetchedProjects, pinnedIds] = await Promise.all([
         getUserInfo(uid),
         getUserInterests(uid).catch((error: unknown) => {
           console.error('Failed to load interests:', error);
@@ -81,7 +87,18 @@ export function ProfileView({ uid }: ProfileViewProps) {
           console.error('Failed to load projects:', error);
           return [];
         }),
+        getPinnedIds(uid).catch((error: unknown) => {
+          console.error('Failed to load pins:', error);
+          return { projectIds: [], opportunityIds: [] };
+        }),
       ]);
+
+      const fetchedPinnedOpportunities = await getOpportunitiesByIds(pinnedIds.opportunityIds).catch(
+        (error: unknown) => {
+          console.error('Failed to load pinned opportunities:', error);
+          return [];
+        }
+      );
 
       if (!cancelled) {
         setInfo(fetchedInfo);
@@ -89,6 +106,8 @@ export function ProfileView({ uid }: ProfileViewProps) {
         setFollowerCount(followers);
         setFollowingCount(following);
         setProjects(fetchedProjects);
+        setPinnedProjectIds(pinnedIds.projectIds);
+        setPinnedOpportunities(fetchedPinnedOpportunities);
       }
     }
 
@@ -110,9 +129,33 @@ export function ProfileView({ uid }: ProfileViewProps) {
     }
   }
 
-  function handleProfileSaved({ displayName, interests: nextInterests }: { displayName: string; interests: string[] }): void {
-    setInfo((previous) => (previous ? { ...previous, name: displayName } : previous));
+  function handleProfileSaved({
+    displayName,
+    interests: nextInterests,
+    bio,
+  }: {
+    displayName: string;
+    interests: string[];
+    bio: string;
+  }): void {
+    setInfo((previous) => (previous ? { ...previous, name: displayName, bio } : previous));
     setInterests(nextInterests);
+  }
+
+  async function handleToggleProjectPin(projectId: string): Promise<void> {
+    const wasPinned = pinnedProjectIds.includes(projectId);
+    setPinnedProjectIds((previous) =>
+      wasPinned ? previous.filter((id) => id !== projectId) : [...previous, projectId]
+    );
+    try {
+      await setProjectPinned(uid, projectId, !wasPinned);
+    } catch (error) {
+      console.error('Failed to update pin:', error);
+      toast.error('Could not update that pin. Try again.');
+      setPinnedProjectIds((previous) =>
+        wasPinned ? [...previous, projectId] : previous.filter((id) => id !== projectId)
+      );
+    }
   }
 
   if (!info) {
@@ -163,6 +206,8 @@ export function ProfileView({ uid }: ProfileViewProps) {
                 }
               />
             </div>
+
+            {info.bio && <p className="max-w-md pt-1 text-sm text-oak">{info.bio}</p>}
           </div>
         </div>
 
@@ -171,6 +216,7 @@ export function ProfileView({ uid }: ProfileViewProps) {
             uid={uid}
             currentDisplayName={info.name}
             currentInterests={interests}
+            currentBio={info.bio ?? ''}
             onSaved={handleProfileSaved}
             trigger={
               <Button type="button" variant="outline" size="sm">
@@ -198,6 +244,7 @@ export function ProfileView({ uid }: ProfileViewProps) {
             uid={uid}
             currentDisplayName={info.name}
             currentInterests={interests}
+            currentBio={info.bio ?? ''}
             onSaved={handleProfileSaved}
             trigger={
               <button
@@ -223,6 +270,40 @@ export function ProfileView({ uid }: ProfileViewProps) {
         )}
       </div>
 
+      {(pinnedProjectIds.length > 0 || pinnedOpportunities.length > 0) && (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-sm font-medium text-ink">Pinned</h2>
+          {projects && pinnedProjectIds.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {projects
+                .filter((project) => pinnedProjectIds.includes(project.id))
+                .map((project) => (
+                  <div key={project.id} className="relative">
+                    {isOwnProfile && (
+                      <button
+                        type="button"
+                        aria-label="Unpin this project"
+                        onClick={() => void handleToggleProjectPin(project.id)}
+                        className="absolute top-3 right-3 z-10 flex size-7 items-center justify-center rounded-full bg-white text-deep-amber shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+                      >
+                        <IconPinFilled className="size-4" aria-hidden="true" />
+                      </button>
+                    )}
+                    <ProjectCard project={project} />
+                  </div>
+                ))}
+            </div>
+          )}
+          {pinnedOpportunities.length > 0 && (
+            <div className="flex flex-col gap-4">
+              {pinnedOpportunities.map((opportunity) => (
+                <OpportunityListingCard key={opportunity.id} opportunity={opportunity} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-ink">Current projects</h2>
         {projects === null && <p className="text-sm text-sand">Loading projects…</p>}
@@ -233,17 +314,31 @@ export function ProfileView({ uid }: ProfileViewProps) {
         )}
         {projects && projects.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
-            {projects.map((project) => (
-              <div key={project.id} className="relative">
-                {isOwnProfile && (
-                  <Chip
-                    label={VISIBILITY_LABELS[project.visibility]}
-                    className="absolute top-3 right-3 z-10"
-                  />
-                )}
-                <ProjectCard project={project} />
-              </div>
-            ))}
+            {projects.map((project) => {
+              const isPinned = pinnedProjectIds.includes(project.id);
+              return (
+                <div key={project.id} className="relative">
+                  {isOwnProfile && (
+                    <button
+                      type="button"
+                      aria-label={isPinned ? 'Unpin this project' : 'Pin this project to your profile'}
+                      aria-pressed={isPinned}
+                      onClick={() => void handleToggleProjectPin(project.id)}
+                      className={cn(
+                        'absolute top-3 right-3 z-10 flex size-7 items-center justify-center rounded-full bg-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+                        isPinned ? 'text-deep-amber' : 'text-sand hover:text-oak'
+                      )}
+                    >
+                      <IconPinFilled className="size-4" aria-hidden="true" />
+                    </button>
+                  )}
+                  {isOwnProfile && (
+                    <Chip label={VISIBILITY_LABELS[project.visibility]} className="absolute top-3 left-3 z-10" />
+                  )}
+                  <ProjectCard project={project} />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

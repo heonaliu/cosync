@@ -1,6 +1,6 @@
 'use client';
 
-import { doc, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ type EditProjectDialogProps = {
   onSaved: () => void;
 };
 
-const STAGE_OPTIONS: ProjectStage[] = ['idea', 'prototyping', 'shipping'];
+const STAGE_OPTIONS: ProjectStage[] = ['idea', 'prototyping', 'shipping', 'launched'];
 
 const VISIBILITY_HINTS: Record<ProjectVisibility, string> = {
   public: 'Anyone can find and follow it — shown in Discover and feeds.',
@@ -46,7 +46,9 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
   const [description, setDescription] = useState(project.description);
   const [tags, setTags] = useState<string[]>(project.tags);
   const [stage, setStage] = useState<ProjectStage>(project.stage);
+  const [liveUrl, setLiveUrl] = useState(project.liveUrl ?? '');
   const [visibility, setVisibility] = useState<ProjectVisibility>(project.visibility);
+  const [customTagInput, setCustomTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,19 +58,31 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
     setTags((previous) => (previous.includes(tag) ? previous.filter((item) => item !== tag) : [...previous, tag]));
   }
 
+  function addCustomTag(): void {
+    const tag = customTagInput.trim();
+    if (tag && !tags.includes(tag)) setTags((previous) => [...previous, tag]);
+    setCustomTagInput('');
+  }
+
   async function handleSave(): Promise<void> {
     if (!canSave) return;
     setIsSaving(true);
     setError(null);
     try {
-      await updateDoc(doc(db, 'projects', project.id), {
+      const payload: Record<string, unknown> = {
         title: title.trim(),
         pitch: pitch.trim(),
         description: description.trim() || pitch.trim(),
         tags,
         stage,
         visibility,
-      });
+      };
+      // liveUrl only matters once launched, and an empty string would fail
+      // Chip/Link rendering elsewhere expecting a real URL or nothing —
+      // clearing it (switching off launched, or blanking the field) removes
+      // the field entirely rather than leaving a stale/empty one behind.
+      payload.liveUrl = stage === 'launched' && liveUrl.trim() ? liveUrl.trim() : deleteField();
+      await updateDoc(doc(db, 'projects', project.id), payload);
       setOpen(false);
       onSaved();
     } catch (saveError) {
@@ -137,6 +151,24 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
                   <PillToggle key={tag} label={tag} isActive activeColor="purple" onClick={() => toggleTag(tag)} />
                 ))}
             </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={customTagInput}
+                onChange={(event) => setCustomTagInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addCustomTag();
+                  }
+                }}
+                placeholder="Add your own"
+                className="h-8 max-w-48"
+                aria-label="Add your own tag"
+              />
+              <Button type="button" variant="outline" size="sm" onClick={addCustomTag}>
+                Add
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -152,6 +184,20 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
                 />
               ))}
             </div>
+            {stage === 'launched' && (
+              <div className="flex flex-col gap-1.5 pt-1">
+                <label htmlFor="edit-project-live-url" className="text-xs text-sand">
+                  Live link
+                </label>
+                <Input
+                  id="edit-project-live-url"
+                  type="url"
+                  value={liveUrl}
+                  onChange={(event) => setLiveUrl(event.target.value)}
+                  placeholder="https://…"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
