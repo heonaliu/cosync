@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 type CommentListProps = {
   comments: Comment[];
-  onReply: (target: { commentId: string; authorName: string }) => void;
+  onReply: (target: { commentId: string; authorUid: string; authorName: string }) => void;
 };
 
 // Rotates by depth, same "fixed palette, cycle by index" idea as a git
@@ -20,6 +20,12 @@ const RAIL_LINE_CLASS: Record<(typeof RAIL_COLORS)[number], string> = {
   purple: 'bg-purple',
   amber: 'bg-amber',
   sky: 'bg-sky',
+};
+const RAIL_BORDER_CLASS: Record<(typeof RAIL_COLORS)[number], string> = {
+  fresh: 'border-fresh',
+  purple: 'border-purple',
+  amber: 'border-amber',
+  sky: 'border-sky',
 };
 
 // How many parentCommentId hops back to the original post — a top-level
@@ -60,21 +66,43 @@ export function CommentList({ comments, onReply }: CommentListProps) {
 
         return (
           <li key={comment.id} className="flex">
-            {Array.from({ length: depth }).map((_, level) => (
+            {/* Straight guide lines for every ancestor lane this reply
+                passes through — depth - 1 of them, since the innermost one
+                (this reply's direct parent) becomes the curved elbow below
+                instead of a plain line. */}
+            {Array.from({ length: Math.max(depth - 1, 0) }).map((_, level) => (
               <span key={level} aria-hidden="true" className="flex w-4 shrink-0 justify-center">
                 <span className={cn('w-0.5 opacity-40', RAIL_LINE_CLASS[RAIL_COLORS[level % RAIL_COLORS.length]])} />
               </span>
             ))}
-            <span aria-hidden="true" className="flex w-4 shrink-0 flex-col items-center">
-              <span className={cn('w-0.5 flex-1', RAIL_LINE_CLASS[nodeColor])} />
-              <span className={cn('size-2.5 shrink-0 rounded-full', RAIL_LINE_CLASS[nodeColor])} />
-              <span className={cn('w-0.5 flex-1', RAIL_LINE_CLASS[nodeColor])} />
-            </span>
+            {depth > 0 && (
+              // The "merge" look: a vertical line down from the row's top,
+              // curving into a horizontal stub that runs into the card —
+              // the classic border + rounded-corner elbow trick (two
+              // straight borders meeting at a radius reads as one smooth
+              // curve), same idea as a git graph's branch curving into its
+              // parent rather than a right-angle bend.
+              <span aria-hidden="true" className="w-4 shrink-0 self-stretch">
+                <span
+                  className={cn(
+                    'block h-1/2 w-full rounded-bl-2xl border-b-2 border-l-2 opacity-60',
+                    RAIL_BORDER_CLASS[nodeColor]
+                  )}
+                />
+              </span>
+            )}
 
             <div className="flex min-w-0 flex-1 flex-col gap-2 rounded-card bg-white p-4">
               {comment.parentCommentId && comment.parentCommentAuthorName && (
                 <p className="text-xs text-sand">
-                  Replying to <span className="font-medium text-oak">@{comment.parentCommentAuthorName}</span>
+                  Replying to{' '}
+                  {comment.parentCommentAuthorUid ? (
+                    <Link href={`/profile/${comment.parentCommentAuthorUid}`} className="font-medium text-oak hover:underline">
+                      @{comment.parentCommentAuthorName}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-oak">@{comment.parentCommentAuthorName}</span>
+                  )}
                 </p>
               )}
 
@@ -95,7 +123,7 @@ export function CommentList({ comments, onReply }: CommentListProps) {
 
               <button
                 type="button"
-                onClick={() => onReply({ commentId: comment.id, authorName: comment.authorName })}
+                onClick={() => onReply({ commentId: comment.id, authorUid: comment.authorUid, authorName: comment.authorName })}
                 className="self-start text-xs text-oak hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
               >
                 Reply

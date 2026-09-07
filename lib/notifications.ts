@@ -118,10 +118,14 @@ export async function declineProjectInvite(params: {
   await deleteDoc(doc(db, 'notifications', uid, 'items', notificationId));
 }
 
-// @mention in a reply — sourceRef is the thread's encoded postId (see
-// lib/thread.ts's encodeThreadId) so the notification can link straight to
-// /thread/{sourceRef}. Never notifies someone about mentioning themselves.
-export async function sendMentionNotification(params: {
+// Backs both @mentions and "someone replied to your comment/post" —
+// sourceRef is the thread's encoded postId (see lib/thread.ts's
+// encodeThreadId) so the notification can link straight to
+// /thread/{sourceRef}. Never notifies someone about their own action; see
+// lib/thread.ts's postComment for the actual dedupe logic (a reply that's
+// also an @mention of the same person only notifies them once).
+export async function sendThreadNotification(params: {
+  kind: 'mention' | 'reply';
   toUid: string;
   actorUid: string;
   actorName: string;
@@ -129,11 +133,11 @@ export async function sendMentionNotification(params: {
 }): Promise<void> {
   if (params.toUid === params.actorUid) return;
   await addDoc(collection(db, 'notifications', params.toUid, 'items'), {
-    kind: 'mention',
+    kind: params.kind,
     actorUid: params.actorUid,
     actorName: params.actorName,
     sourceRef: params.threadId,
-    sourceLabel: 'mentioned you in a reply',
+    sourceLabel: params.kind === 'mention' ? 'mentioned you in a reply' : 'replied to you',
     seen: false,
     createdAt: serverTimestamp(),
   });

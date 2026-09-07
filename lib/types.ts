@@ -224,6 +224,7 @@ export type Comment = {
    * alongside it so the thread page doesn't need a second lookup per reply. */
   parentCommentId?: string;
   parentCommentAuthorName?: string;
+  parentCommentAuthorUid?: string;
   createdAt: number;
 };
 
@@ -241,7 +242,7 @@ export type ProjectInvite = {
   createdAt: number;
 };
 
-export type NotificationKind = 'projectInvite' | 'mention';
+export type NotificationKind = 'projectInvite' | 'mention' | 'reply';
 
 // notifications/{uid}/items/{notificationId} — see CLAUDE.md's data model.
 // Denormalizes enough to render the notification list without a second read

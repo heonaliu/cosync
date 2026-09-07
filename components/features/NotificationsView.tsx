@@ -88,14 +88,23 @@ export function NotificationsView() {
             <div className="flex items-center gap-3">
               <Avatar name={notification.actorName} size="sm" decorative />
               <div className="flex flex-col">
-                {notification.kind === 'mention' ? (
+                {notification.kind === 'mention' && (
                   <p className="text-sm text-ink">
                     <span className="font-medium">{notification.actorName}</span>{' '}
                     <Link href={`/thread/${notification.sourceRef}`} className="font-medium hover:underline">
                       mentioned you in a reply
                     </Link>
                   </p>
-                ) : (
+                )}
+                {notification.kind === 'reply' && (
+                  <p className="text-sm text-ink">
+                    <span className="font-medium">{notification.actorName}</span>{' '}
+                    <Link href={`/thread/${notification.sourceRef}`} className="font-medium hover:underline">
+                      replied to you
+                    </Link>
+                  </p>
+                )}
+                {notification.kind === 'projectInvite' && (
                   <p className="text-sm text-ink">
                     <span className="font-medium">{notification.actorName}</span> invited you to collaborate on{' '}
                     <Link href={`/projects/${notification.sourceRef}`} className="font-medium hover:underline">

@@ -13,10 +13,14 @@ import { searchUsersByPrefix, type UserInfo } from '@/lib/queries';
 import { postComment, type ThreadRef } from '@/lib/thread';
 import { useAuth } from '@/lib/useAuth';
 
-export type ReplyTarget = { commentId: string; authorName: string } | null;
+export type ReplyTarget = { commentId: string; authorUid: string; authorName: string } | null;
 
 type CommentComposerProps = {
   threadRef: ThreadRef;
+  /** The thread's own post author — see lib/thread.ts's NewComment for why
+   * this is needed even when replyTarget is null (a top-level comment
+   * still notifies the post's author). */
+  postAuthorUid: string;
   replyTarget: ReplyTarget;
   onClearReplyTarget: () => void;
   onPosted: () => void;
@@ -28,7 +32,13 @@ type CommentComposerProps = {
 // write-up on searchUsersByPrefix for the full scale discussion).
 const MENTION_SEARCH_DEBOUNCE_MS = 200;
 
-export function CommentComposer({ threadRef, replyTarget, onClearReplyTarget, onPosted }: CommentComposerProps) {
+export function CommentComposer({
+  threadRef,
+  postAuthorUid,
+  replyTarget,
+  onClearReplyTarget,
+  onPosted,
+}: CommentComposerProps) {
   const { user } = useAuth();
   const [content, setContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
@@ -136,6 +146,8 @@ export function CommentComposer({ threadRef, replyTarget, onClearReplyTarget, on
         mentionedUids: extractMentionedUids(content),
         parentCommentId: replyTarget?.commentId,
         parentCommentAuthorName: replyTarget?.authorName,
+        parentCommentAuthorUid: replyTarget?.authorUid,
+        postAuthorUid,
       });
       setContent('');
       onClearReplyTarget();

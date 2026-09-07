@@ -215,6 +215,7 @@ export function ThreadView({ postId }: ThreadViewProps) {
       <div className="flex flex-col gap-4">
         <CommentComposer
           threadRef={thread.ref}
+          postAuthorUid={thread.authorUid}
           replyTarget={replyTarget}
           onClearReplyTarget={() => setReplyTarget(null)}
           onPosted={() => setReloadToken((token) => token + 1)}

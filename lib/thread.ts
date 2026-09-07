@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
-import { sendMentionNotification } from '@/lib/notifications';
+import { sendThreadNotification } from '@/lib/notifications';
 import { getUserInfo, toMillis } from '@/lib/queries';
 import type { Comment } from '@/lib/types';
 
@@ -169,6 +169,7 @@ function commentFromDoc(id: string, data: DocumentData): Comment {
     mentionedUids: Array.isArray(data.mentionedUids) ? data.mentionedUids : undefined,
     parentCommentId: data.parentCommentId,
     parentCommentAuthorName: data.parentCommentAuthorName,
+    parentCommentAuthorUid: data.parentCommentAuthorUid,
     createdAt: toMillis(data.createdAt),
   };
 }
@@ -185,6 +186,11 @@ export type NewComment = {
   mentionedUids: string[];
   parentCommentId?: string;
   parentCommentAuthorName?: string;
+  parentCommentAuthorUid?: string;
+  /** The thread's own post author — always known by the caller (ThreadView
+   * already has it via getThreadData). Used to notify the post's author
+   * when a comment replies to the post itself, not to another comment. */
+  postAuthorUid: string;
 };
 
 // Posts a comment/reply, then bumps the parent post's comment/reply count.
@@ -199,19 +205,44 @@ export async function postComment(ref: ThreadRef, comment: NewComment): Promise<
   if (comment.parentCommentId) {
     payload.parentCommentId = comment.parentCommentId;
     payload.parentCommentAuthorName = comment.parentCommentAuthorName;
+    payload.parentCommentAuthorUid = comment.parentCommentAuthorUid;
   }
 
   await addDoc(commentsCollection(ref), payload);
   await updateDoc(postDocRef(ref), { [commentCountField(ref)]: increment(1) });
 
   // Best-effort — a failed notification write shouldn't undo or error out
-  // a comment that already posted successfully.
+  // a comment that already posted successfully. Whoever this comment is
+  // directly replying to (a specific comment's author, or the post's own
+  // author when there's no parent comment) gets a 'reply' notification;
+  // everyone else @mentioned gets a 'mention' one. notifiedUids stops the
+  // same person getting pinged twice — e.g. replying to someone AND
+  // @mentioning them in the same comment is one notification, not two.
   const threadId = encodeThreadId(ref);
-  await Promise.allSettled(
-    comment.mentionedUids
-      .filter((uid) => uid !== comment.authorUid)
-      .map((uid) =>
-        sendMentionNotification({ toUid: uid, actorUid: comment.authorUid, actorName: comment.authorName, threadId })
-      )
-  );
+  const notifiedUids = new Set<string>([comment.authorUid]);
+  const sends: Promise<void>[] = [];
+
+  const replyToUid = comment.parentCommentAuthorUid ?? comment.postAuthorUid;
+  if (!notifiedUids.has(replyToUid)) {
+    notifiedUids.add(replyToUid);
+    sends.push(
+      sendThreadNotification({
+        kind: 'reply',
+        toUid: replyToUid,
+        actorUid: comment.authorUid,
+        actorName: comment.authorName,
+        threadId,
+      })
+    );
+  }
+
+  for (const uid of comment.mentionedUids) {
+    if (notifiedUids.has(uid)) continue;
+    notifiedUids.add(uid);
+    sends.push(
+      sendThreadNotification({ kind: 'mention', toUid: uid, actorUid: comment.authorUid, actorName: comment.authorName, threadId })
+    );
+  }
+
+  await Promise.allSettled(sends);
 }
