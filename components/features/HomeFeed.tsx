@@ -9,7 +9,7 @@ import { OpportunityCard } from '@/components/features/OpportunityCard';
 import { ProjectCard } from '@/components/features/ProjectCard';
 import { QuietProjectNudge } from '@/components/features/QuietProjectNudge';
 import { PillToggle } from '@/components/ui/PillToggle';
-import { syncOwnLandingFeed } from '@/lib/landingFeed';
+import { LANDING_SYNC_VERSION, syncOwnLandingFeed } from '@/lib/landingFeed';
 import { getDistanceMiles, isNearbyMatch, RADIUS_OPTIONS_MILES } from '@/lib/location';
 import { isOpportunityOver, sortPassedLast } from '@/lib/opportunities';
 import {
@@ -92,7 +92,7 @@ export function HomeFeed() {
   // on every visit to Home. Fire-and-forget; nothing here depends on it.
   useEffect(() => {
     if (!user) return;
-    const sessionKey = `landingFeedSynced:${user.uid}`;
+    const sessionKey = `landingFeedSynced:v${LANDING_SYNC_VERSION}:${user.uid}`;
     try {
       if (sessionStorage.getItem(sessionKey)) return;
       sessionStorage.setItem(sessionKey, '1');

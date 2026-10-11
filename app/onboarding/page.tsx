@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
 import { PillToggle } from '@/components/ui/PillToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { takeAfterSignInPath } from '@/lib/afterSignIn';
 import { db } from '@/lib/firebase';
 import { PROJECT_CATEGORY_TAGS } from '@/lib/tags';
 import type { UserRole } from '@/lib/types';
@@ -85,7 +86,7 @@ export default function OnboardingPage() {
         { onboardedAt: serverTimestamp() },
         { merge: true }
       );
-      router.push('/home');
+      router.push(takeAfterSignInPath() ?? '/home');
     } catch (skipError) {
       setError(skipError instanceof Error ? skipError.message : 'Something went wrong.');
       setIsSaving(false);
@@ -121,7 +122,7 @@ export default function OnboardingPage() {
         { gender, onboardedAt: serverTimestamp() },
         { merge: true }
       );
-      router.push('/home');
+      router.push(takeAfterSignInPath() ?? '/home');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Something went wrong.');
       setIsSaving(false);

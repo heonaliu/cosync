@@ -202,6 +202,10 @@ export async function getLandingFeed(count: number): Promise<LandingFeedItem[]> 
   return cards.slice(0, count);
 }
 
+// Bumped whenever syncOwnLandingFeed learns to fix something new (v2: covers),
+// so it reruns once for people who already synced this browser session.
+export const LANDING_SYNC_VERSION = 2;
+
 // Adds this user's own newest updates on public projects that aren't in the
 // landing feed yet — so updates posted before the feed existed (or whose
 // publish failed) still show up, without anyone running a manual backfill.

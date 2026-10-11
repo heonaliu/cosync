@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 
+import { GoogleSignInButton } from '@/components/features/GoogleSignInButton';
 import { ProjectCover } from '@/components/features/ProjectCover';
 import { Avatar } from '@/components/ui/Avatar';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { setAfterSignInPath } from '@/lib/afterSignIn';
 import { accentClasses, accentColorFor } from '@/lib/color';
 import { getLandingFeed, type LandingFeedItem } from '@/lib/landingFeed';
 import { formatRelativeTime } from '@/lib/time';
@@ -20,9 +23,24 @@ const SECONDS_PER_CARD = 10;
 // (never repeated cards), so time the loop as if it had at least this many.
 const MIN_CARDS_FOR_TIMING = 5;
 
-function TickerCard({ item, className }: { item: LandingFeedItem; className?: string }) {
+type TickerCardProps = {
+  item: LandingFeedItem;
+  onOpen: (item: LandingFeedItem) => void;
+  /** The loop's duplicate pass — kept out of the tab order. */
+  isDuplicate?: boolean;
+  className?: string;
+};
+
+function TickerCard({ item, onOpen, isDuplicate = false, className }: TickerCardProps) {
   return (
-    <li className={cn('flex w-72 shrink-0 flex-col gap-2 overflow-hidden rounded-card bg-white p-4', className)}>
+    <li className={cn('flex w-72 shrink-0', className)}>
+      <button
+        type="button"
+        tabIndex={isDuplicate ? -1 : undefined}
+        onClick={() => onOpen(item)}
+        aria-label={`${item.firstName} posted to ${item.projectTitle} — sign in to see it`}
+        className="flex w-full flex-col gap-2 overflow-hidden rounded-card bg-white p-4 text-left transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+      >
       {/* The project's cover, or a color band of the same size, so every
           card in the strip is the same height. Bleeds to the card's edges. */}
       {item.coverImageUrl ? (
@@ -51,6 +69,7 @@ function TickerCard({ item, className }: { item: LandingFeedItem; className?: st
       </div>
       <p className="line-clamp-3 text-sm text-oak">{item.excerpt || 'Shared a new photo of the build.'}</p>
       <span className="mt-auto text-xs text-sand">{formatRelativeTime(item.createdAt)}</span>
+      </button>
     </li>
   );
 }
@@ -63,6 +82,28 @@ function TickerCard({ item, className }: { item: LandingFeedItem; className?: st
 // entirely for anyone who's asked their OS for reduced motion.
 export function LandingJournalTicker() {
   const [items, setItems] = useState<LandingFeedItem[] | null>(null);
+  // The card someone clicked — signed-out visitors are asked to sign in,
+  // then taken straight to that project (lib/afterSignIn.ts).
+  const [selected, setSelected] = useState<LandingFeedItem | null>(null);
+
+  function handleOpen(item: LandingFeedItem): void {
+    setAfterSignInPath(`/projects/${item.projectId}`);
+    setSelected(item);
+  }
+
+  const signInDialog = (
+    <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Sign in to see {selected?.projectTitle ?? 'this project'}</DialogTitle>
+          <DialogDescription>
+            Build journals are only open to CoSync members. Sign in and we&apos;ll take you straight there.
+          </DialogDescription>
+        </DialogHeader>
+        <GoogleSignInButton className="w-full">Continue with Google</GoogleSignInButton>
+      </DialogContent>
+    </Dialog>
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -93,11 +134,14 @@ export function LandingJournalTicker() {
 
   if (items.length <= MAX_STATIC_CARDS) {
     return (
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {items.map((item) => (
-          <TickerCard key={item.id} item={item} className="w-auto" />
-        ))}
-      </ul>
+      <>
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {items.map((item) => (
+            <TickerCard key={item.id} item={item} onOpen={handleOpen} className="w-auto" />
+          ))}
+        </ul>
+        {signInDialog}
+      </>
     );
   }
 
@@ -127,11 +171,12 @@ export function LandingJournalTicker() {
             className={cn('flex min-w-[100vw] gap-4 pr-4', pass === 1 && 'motion-reduce:hidden')}
           >
             {items.map((item) => (
-              <TickerCard key={item.id} item={item} />
+              <TickerCard key={item.id} item={item} onOpen={handleOpen} isDuplicate={pass === 1} />
             ))}
           </ul>
         ))}
       </div>
+      {signInDialog}
     </div>
   );
 }
