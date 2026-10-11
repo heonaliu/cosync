@@ -23,8 +23,7 @@ import { useUnseenNotificationCount } from '@/lib/useNotifications';
 import { cn } from '@/lib/utils';
 
 const MARKETING_LINKS = [
-  { href: '#', label: 'How it works' },
-  { href: '#', label: 'Showcase' },
+  { href: '/about', label: 'About' },
 ];
 
 const APP_LINKS = [
