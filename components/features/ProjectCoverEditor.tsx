@@ -9,6 +9,7 @@ import { ProjectCover } from '@/components/features/ProjectCover';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
 import { MAX_IMAGE_BYTES, uploadImage } from '@/lib/imageUpload';
+import { syncProjectCoverInLandingFeed } from '@/lib/landingFeed';
 import type { CoverPosition, Project } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -48,7 +49,17 @@ export function ProjectCoverEditor({ project, onChanged }: ProjectCoverEditorPro
       coverImageUrl: coverImageUrl ?? deleteField(),
       coverPosition: deleteField(),
     });
+    syncLanding({ coverImageUrl: coverImageUrl ?? undefined });
     onChanged();
+  }
+
+  // Keeps the signed-out landing page's copies in step (lib/landingFeed.ts).
+  // Best-effort — the project itself already saved.
+  function syncLanding(cover: { coverImageUrl?: string; coverPosition?: CoverPosition }): void {
+    if (project.visibility !== 'public') return;
+    syncProjectCoverInLandingFeed(project.id, cover).catch((error: unknown) =>
+      console.error('Failed to update the landing feed cover:', error)
+    );
   }
 
   // How far (px) the cropped image overflows the frame on each axis. With
@@ -105,9 +116,9 @@ export function ProjectCoverEditor({ project, onChanged }: ProjectCoverEditorPro
     if (!draft) return;
     setIsBusy(true);
     try {
-      await updateDoc(doc(db, 'projects', project.id), {
-        coverPosition: { x: Math.round(draft.x * 10) / 10, y: Math.round(draft.y * 10) / 10 },
-      });
+      const coverPosition = { x: Math.round(draft.x * 10) / 10, y: Math.round(draft.y * 10) / 10 };
+      await updateDoc(doc(db, 'projects', project.id), { coverPosition });
+      syncLanding({ coverImageUrl: project.coverImageUrl, coverPosition });
       setDraft(null);
       onChanged();
     } catch (error) {

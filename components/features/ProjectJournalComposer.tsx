@@ -94,6 +94,7 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
               authorUid: uid,
               authorName: info.name,
               content: postedContent,
+              cover: project,
             })
           )
           .catch((error: unknown) => console.error('Failed to add update to the landing feed:', error));

@@ -19,7 +19,11 @@ import { PillToggle } from '@/components/ui/PillToggle';
 import { Textarea } from '@/components/ui/Textarea';
 import { STAGE_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
-import { removeProjectFromLandingFeed, renameProjectInLandingFeed } from '@/lib/landingFeed';
+import {
+  removeProjectFromLandingFeed,
+  renameProjectInLandingFeed,
+  syncProjectCoverInLandingFeed,
+} from '@/lib/landingFeed';
 import { PROJECT_CATEGORY_TAGS } from '@/lib/tags';
 import type { Project, ProjectStage, ProjectVisibility } from '@/lib/types';
 
@@ -98,10 +102,18 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
         removeProjectFromLandingFeed(project.id).catch((landingError: unknown) =>
           console.error('Failed to remove project from the landing feed:', landingError)
         );
-      } else if (visibility === 'public' && title.trim() !== project.title) {
-        renameProjectInLandingFeed(project.id, title.trim()).catch((landingError: unknown) =>
-          console.error('Failed to rename project in the landing feed:', landingError)
-        );
+      } else if (visibility === 'public') {
+        if (title.trim() !== project.title) {
+          renameProjectInLandingFeed(project.id, title.trim()).catch((landingError: unknown) =>
+            console.error('Failed to rename project in the landing feed:', landingError)
+          );
+        }
+        if (coverImageUrl !== (project.coverImageUrl ?? null)) {
+          // A new photo starts centered, so no position carries over.
+          syncProjectCoverInLandingFeed(project.id, { coverImageUrl: coverImageUrl ?? undefined }).catch(
+            (landingError: unknown) => console.error('Failed to update the landing feed cover:', landingError)
+          );
+        }
       }
       setOpen(false);
       onSaved();

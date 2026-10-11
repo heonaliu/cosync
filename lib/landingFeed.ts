@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -15,15 +16,22 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { isCloudinaryImageUrl } from '@/lib/imageUpload';
 import { getUserInfo, toMillis } from '@/lib/queries';
+import type { CoverPosition, Project } from '@/lib/types';
 
 // landingFeed/{entryId} — the only CoSync data a signed-out visitor can
 // read, so the landing page can show real recent activity. It's a separate,
 // deliberately thin copy of a journal entry rather than the entry itself
-// being made public: just the author's first name, the project title, and
-// a short text-only excerpt. Never photos (uploads aren't moderated yet —
-// see CLAUDE.md safety rule 4), never full names or uids of anyone
+// being made public: just the author's first name, the project title, a
+// short text-only excerpt, and the project's cover photo if it has one.
+// Never the post's own photos, never full names or uids of anyone
 // @mentioned, never anything from an unlisted/private project.
+//
+// The cover is a deliberate product call (Oct 2026): covers are shown to
+// signed-out visitors even though uploads aren't moderated yet. Only the
+// project's current cover can be copied here — firestore.rules checks it
+// against the project doc — so this can't be used to post an arbitrary image.
 //
 // Kept in sync from the client at each point the source can change:
 // posting (ProjectJournalComposer), editing a post (lib/thread.ts),
@@ -36,6 +44,9 @@ const EXCERPT_MAX_LENGTH = 160;
 
 export type LandingFeedItem = {
   id: string;
+  projectId: string;
+  coverImageUrl?: string;
+  coverPosition?: CoverPosition;
   firstName: string;
   projectTitle: string;
   /** Empty for a photo-only update. */
@@ -63,6 +74,18 @@ function toLandingExcerpt(content: string): string {
   return `${(lastSpace > EXCERPT_MAX_LENGTH * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
+type ProjectCover = Pick<Project, 'coverImageUrl' | 'coverPosition'>;
+
+// Exactly the project's current cover fields, or nothing — the rules
+// compare these to the project doc, so they must match it field for field.
+function coverFields(project: ProjectCover): Record<string, unknown> {
+  if (!project.coverImageUrl) return {};
+  return {
+    coverImageUrl: project.coverImageUrl,
+    ...(project.coverPosition ? { coverPosition: project.coverPosition } : {}),
+  };
+}
+
 export async function publishToLandingFeed(params: {
   entryId: string;
   projectId: string;
@@ -70,6 +93,7 @@ export async function publishToLandingFeed(params: {
   authorUid: string;
   authorName: string;
   content: string;
+  cover: ProjectCover;
 }): Promise<void> {
   await setDoc(doc(db, LANDING_FEED, params.entryId), {
     authorUid: params.authorUid,
@@ -77,6 +101,7 @@ export async function publishToLandingFeed(params: {
     projectId: params.projectId,
     projectTitle: params.projectTitle,
     excerpt: toLandingExcerpt(params.content),
+    ...coverFields(params.cover),
     createdAt: serverTimestamp(),
   });
 }
@@ -112,6 +137,28 @@ export async function renameProjectInLandingFeed(projectId: string, projectTitle
   await batch.commit();
 }
 
+// After a cover is added, changed, repositioned or removed — owner/co-owner
+// only (the rules check it). Only touches docs that are out of date.
+export async function syncProjectCoverInLandingFeed(projectId: string, cover: ProjectCover): Promise<void> {
+  const snapshot = await getProjectLandingDocs(projectId);
+  const stale = snapshot.docs.filter((docSnap) => {
+    const data = docSnap.data();
+    return (
+      (data.coverImageUrl ?? null) !== (cover.coverImageUrl ?? null) ||
+      JSON.stringify(data.coverPosition ?? null) !== JSON.stringify((cover.coverImageUrl && cover.coverPosition) || null)
+    );
+  });
+  if (stale.length === 0) return;
+  const batch = writeBatch(db);
+  stale.forEach((docSnap) =>
+    batch.update(docSnap.ref, {
+      coverImageUrl: cover.coverImageUrl ?? deleteField(),
+      coverPosition: (cover.coverImageUrl && cover.coverPosition) || deleteField(),
+    })
+  );
+  await batch.commit();
+}
+
 // How many recent docs to look through when picking the strip's cards —
 // enough that one very active project or person can't crowd everyone else
 // out of the window entirely.
@@ -130,8 +177,13 @@ export async function getLandingFeed(count: number): Promise<LandingFeedItem[]> 
     const data = docSnap.data();
     const projectId = typeof data.projectId === 'string' ? data.projectId : docSnap.id;
     if (newestPerProject.has(projectId)) continue; // already have this project's newest
+    const position = data.coverPosition as { x?: unknown; y?: unknown } | undefined;
     newestPerProject.set(projectId, {
       id: docSnap.id,
+      projectId,
+      coverImageUrl: isCloudinaryImageUrl(data.coverImageUrl) ? data.coverImageUrl : undefined,
+      coverPosition:
+        typeof position?.x === 'number' && typeof position?.y === 'number' ? { x: position.x, y: position.y } : undefined,
       authorUid: typeof data.authorUid === 'string' ? data.authorUid : '',
       firstName: typeof data.firstName === 'string' ? data.firstName : 'A maker',
       projectTitle: typeof data.projectTitle === 'string' ? data.projectTitle : 'a project',
@@ -171,6 +223,12 @@ export async function syncOwnLandingFeed(uid: string, maxEntries = 10): Promise<
           entryId: entrySnap.id,
           projectId: projectSnap.id,
           projectTitle: (projectSnap.data().title as string | undefined) ?? '',
+          cover: {
+            coverImageUrl: isCloudinaryImageUrl(projectSnap.data().coverImageUrl)
+              ? (projectSnap.data().coverImageUrl as string)
+              : undefined,
+            coverPosition: projectSnap.data().coverPosition as CoverPosition | undefined,
+          },
           content: (entrySnap.data().content as string | undefined) ?? '',
           createdAt: toMillis(entrySnap.data().createdAt),
         }));
@@ -180,6 +238,21 @@ export async function syncOwnLandingFeed(uid: string, maxEntries = 10): Promise<
     .flat()
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, maxEntries);
+  // Bring covers on this person's own projects up to date too — covers
+  // added before they reached the landing feed, or a sync that failed.
+  await Promise.allSettled(
+    projects.docs
+      .filter((projectSnap) => projectSnap.data().ownerUid === uid)
+      .map((projectSnap) =>
+        syncProjectCoverInLandingFeed(projectSnap.id, {
+          coverImageUrl: isCloudinaryImageUrl(projectSnap.data().coverImageUrl)
+            ? (projectSnap.data().coverImageUrl as string)
+            : undefined,
+          coverPosition: projectSnap.data().coverPosition as CoverPosition | undefined,
+        })
+      )
+  );
+
   if (entries.length === 0) return 0;
 
   const existing = await Promise.all(entries.map((entry) => getDoc(doc(db, LANDING_FEED, entry.entryId))));

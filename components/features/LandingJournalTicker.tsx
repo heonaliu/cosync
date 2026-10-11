@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
+import { ProjectCover } from '@/components/features/ProjectCover';
 import { Avatar } from '@/components/ui/Avatar';
+import { accentClasses, accentColorFor } from '@/lib/color';
 import { getLandingFeed, type LandingFeedItem } from '@/lib/landingFeed';
 import { formatRelativeTime } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -20,7 +22,25 @@ const MIN_CARDS_FOR_TIMING = 5;
 
 function TickerCard({ item, className }: { item: LandingFeedItem; className?: string }) {
   return (
-    <li className={cn('flex w-72 shrink-0 flex-col gap-2 rounded-card bg-white p-4', className)}>
+    <li className={cn('flex w-72 shrink-0 flex-col gap-2 overflow-hidden rounded-card bg-white p-4', className)}>
+      {/* The project's cover, or a color band of the same size, so every
+          card in the strip is the same height. Bleeds to the card's edges. */}
+      {item.coverImageUrl ? (
+        <ProjectCover
+          url={item.coverImageUrl}
+          variant="card"
+          position={item.coverPosition}
+          className="-mx-4 -mt-4 mb-1 w-[calc(100%+2rem)] max-w-none"
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className={cn(
+            '-mx-4 -mt-4 mb-1 aspect-[10/3] w-[calc(100%+2rem)] max-w-none',
+            accentClasses(accentColorFor(item.projectId)).bg
+          )}
+        />
+      )}
       <div className="flex items-center gap-2">
         <Avatar name={item.firstName} size="sm" decorative />
         <p className="min-w-0 text-sm text-ink">
