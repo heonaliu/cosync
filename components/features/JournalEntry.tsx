@@ -35,7 +35,7 @@ export function JournalEntry({ entry }: JournalEntryProps) {
 
       <RichContent
         content={entry.content}
-        maxLength={150}
+        maxLength={500}
         moreHref={`/thread/${encodeThreadId({ kind: 'journal', projectId: entry.projectId, entryId: entry.id })}`}
       />
 
