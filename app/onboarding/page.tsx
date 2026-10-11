@@ -5,6 +5,7 @@ import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { SchoolInput } from '@/components/features/SchoolInput';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
@@ -37,6 +38,7 @@ export default function OnboardingPage() {
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState('');
   const [gender, setGender] = useState(GENDER_OPTIONS[0]);
+  const [school, setSchool] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,9 +103,17 @@ export default function OnboardingPage() {
       // floating help button's tour auto-open once for a genuinely new
       // account — see lib/useTutorial.ts for why "unset" and "false" have
       // to mean different things here.
+      // School is optional — only written when given. It's what lets
+      // someone see and join clubs that are only for their school.
+      const trimmedSchool = school.trim().replace(/\s+/g, ' ');
       await setDoc(
         doc(db, 'users', user.uid),
-        { interests: selectedInterests, hasSeenTutorial: false, ...roleFields() },
+        {
+          interests: selectedInterests,
+          hasSeenTutorial: false,
+          ...(trimmedSchool ? { school: trimmedSchool } : {}),
+          ...roleFields(),
+        },
         { merge: true }
       );
       await setDoc(
@@ -226,6 +236,14 @@ export default function OnboardingPage() {
             Add
           </Button>
         </div>
+      </div>
+
+      <div className="flex max-w-md flex-col gap-3">
+        <label htmlFor="onboarding-school" className="text-sm font-medium text-ink">
+          School <span className="text-sand">(optional)</span>
+        </label>
+        <SchoolInput id="onboarding-school" value={school} onChange={setSchool} />
+        <p className="text-xs text-sand">Add it to find and join clubs at your school. You can change it later on your profile.</p>
       </div>
 
       <div className="flex flex-col gap-3">

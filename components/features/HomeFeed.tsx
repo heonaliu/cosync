@@ -9,6 +9,7 @@ import { OpportunityCard } from '@/components/features/OpportunityCard';
 import { ProjectCard } from '@/components/features/ProjectCard';
 import { QuietProjectNudge } from '@/components/features/QuietProjectNudge';
 import { PillToggle } from '@/components/ui/PillToggle';
+import { syncOwnLandingFeed } from '@/lib/landingFeed';
 import { getDistanceMiles, isNearbyMatch, RADIUS_OPTIONS_MILES } from '@/lib/location';
 import { isOpportunityOver, sortPassedLast } from '@/lib/opportunities';
 import {
@@ -84,6 +85,24 @@ export function HomeFeed() {
   const [selectedRadii, setSelectedRadii] = useState<Set<number>>(new Set());
   const [onlineSelected, setOnlineSelected] = useState(false);
   const [selectedWeekdays, setSelectedWeekdays] = useState<Set<number>>(new Set());
+
+  // Fills the signed-out landing page's journal strip with this user's
+  // own public updates it's missing (lib/landingFeed.ts). Once per browser
+  // session — it's a handful of reads, but there's no reason to repeat it
+  // on every visit to Home. Fire-and-forget; nothing here depends on it.
+  useEffect(() => {
+    if (!user) return;
+    const sessionKey = `landingFeedSynced:${user.uid}`;
+    try {
+      if (sessionStorage.getItem(sessionKey)) return;
+      sessionStorage.setItem(sessionKey, '1');
+    } catch {
+      // Storage blocked (private mode etc.) — just sync this time.
+    }
+    syncOwnLandingFeed(user.uid).catch((error: unknown) =>
+      console.error('Failed to sync your updates to the landing page:', error)
+    );
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;

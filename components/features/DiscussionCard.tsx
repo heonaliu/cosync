@@ -1,16 +1,22 @@
 'use client';
 
-import { IconHandStop, IconMessageCircle, IconShieldCheck } from '@tabler/icons-react';
+import { IconHandStop, IconMessageCircle, IconShieldCheck, IconTrash } from '@tabler/icons-react';
+import { deleteDoc, doc } from 'firebase/firestore';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
+import { ReportButton } from '@/components/features/ReportButton';
 import { RichContent } from '@/components/features/RichContent';
 import { Avatar } from '@/components/ui/Avatar';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { db } from '@/lib/firebase';
 import { encodeThreadId } from '@/lib/thread';
 import { formatEventDetailLine, formatRelativeTime } from '@/lib/time';
 import type { Discussion } from '@/lib/types';
+import { useAuth } from '@/lib/useAuth';
 import { useCheerDiscussion } from '@/lib/useCheerDiscussion';
 import { cn, truncateText } from '@/lib/utils';
 
@@ -22,12 +28,31 @@ type DiscussionCardProps = {
   /** Gates the Cheer button — only signed-in club members can cheer, not
    * just anyone who can see the (public) preview. */
   isMember?: boolean;
+  /** Called after the author deletes this post, so the list can refresh. */
+  onDeleted?: () => void;
 };
 
-export function DiscussionCard({ discussion, muted = false, isMember = false }: DiscussionCardProps) {
+export function DiscussionCard({ discussion, muted = false, isMember = false, onDeleted }: DiscussionCardProps) {
+  const { user } = useAuth();
   const { hasCheered, cheerCount, toggleCheer } = useCheerDiscussion(discussion);
-  const bodyText = discussion.kind === 'event' ? formatEventDetailLine(discussion) : discussion.content;
+  const isAuthor = Boolean(user) && user?.uid === discussion.authorUid;
+  // Some older event posts have no date/place — show what they do have
+  // (their text) rather than an empty card.
+  const bodyText =
+    discussion.kind === 'event' ? formatEventDetailLine(discussion) || discussion.content : discussion.content;
   const threadHref = `/thread/${encodeThreadId({ kind: 'discussion', clubId: discussion.clubId, discussionId: discussion.id })}`;
+
+  // Replies stay behind in Firestore but nothing links to them any more —
+  // same as deleting an event from ClubEventCard.
+  async function handleDelete(): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'clubs', discussion.clubId, 'discussions', discussion.id));
+      onDeleted?.();
+    } catch (error) {
+      console.error('Failed to delete post:', error);
+      toast.error('Could not delete that post. Try again.');
+    }
+  }
 
   async function handleCheerClick(): Promise<void> {
     try {
@@ -49,12 +74,29 @@ export function DiscussionCard({ discussion, muted = false, isMember = false }: 
           )}
           <span className="text-xs text-sand">· {formatRelativeTime(discussion.createdAt)}</span>
         </div>
-        {discussion.kind !== 'discussion' && (
-          <Chip
-            label={discussion.kind === 'announcement' ? 'Announcement' : 'Event'}
-            color="sage"
-          />
-        )}
+        <div className="flex items-center gap-1">
+          {discussion.kind !== 'discussion' && (
+            <Chip
+              label={discussion.kind === 'announcement' ? 'Announcement' : 'Event'}
+              color="sage"
+            />
+          )}
+          {isAuthor ? (
+            <ConfirmDialog
+              trigger={
+                <Button type="button" variant="ghost" size="icon-sm" aria-label="Delete post">
+                  <IconTrash className="size-4 text-sand" />
+                </Button>
+              }
+              title={discussion.kind === 'event' ? 'Delete this event?' : 'Delete this post?'}
+              description="This can't be undone."
+              confirmLabel="Delete"
+              onConfirm={handleDelete}
+            />
+          ) : (
+            user && <ReportButton kind="discussion" sourceRef={`${discussion.clubId}/${discussion.id}`} label="post" />
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-1">

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ClubBadge } from '@/components/features/ClubBadge';
+import { ClubScopePicker } from '@/components/features/ClubScopePicker';
+import { ClubTagPicker } from '@/components/features/ClubTagPicker';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,8 +28,6 @@ import { getUserInfo } from '@/lib/queries';
 import type { ClubAccess, ClubColorName, ClubIconName, ClubScope } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 import { cn } from '@/lib/utils';
-
-const TAG_OPTIONS = ['Hardware', 'Robotics', 'AI', 'Writing', 'Music'];
 
 const ACCESS_OPTIONS: {
   value: ClubAccess;
@@ -63,6 +63,7 @@ type FormState = {
   colorName: ClubColorName;
   tags: string[];
   scope: ClubScope;
+  customScope: string;
   access: ClubAccess;
   websiteUrl: string;
 };
@@ -74,6 +75,7 @@ const EMPTY_FORM: FormState = {
   colorName: 'sky',
   tags: [],
   scope: 'online',
+  customScope: '',
   access: 'anyone',
   websiteUrl: '',
 };
@@ -88,8 +90,6 @@ export function StartClubDialog({ onCreated }: StartClubDialogProps) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [schoolName, setSchoolName] = useState<string | null>(null);
-  const [customTagInput, setCustomTagInput] = useState('');
-  const [showCustomTagInput, setShowCustomTagInput] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,28 +104,20 @@ export function StartClubDialog({ onCreated }: StartClubDialogProps) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
 
-  function toggleTag(tag: string): void {
-    setForm((previous) => ({
-      ...previous,
-      tags: previous.tags.includes(tag) ? previous.tags.filter((item) => item !== tag) : [...previous.tags, tag],
-    }));
-  }
-
-  function addCustomTag(): void {
-    const tag = customTagInput.trim();
-    if (tag && !form.tags.includes(tag)) {
-      setForm((previous) => ({ ...previous, tags: [...previous.tags, tag] }));
-    }
-    setCustomTagInput('');
-    setShowCustomTagInput(false);
-  }
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!user) return;
 
     if (!form.name.trim() || !form.about.trim()) {
       setError('Club name and About are required.');
+      return;
+    }
+    if (form.scope === 'other' && !form.customScope.trim()) {
+      setError('Say where the club meets, or pick a different option.');
+      return;
+    }
+    if (form.access === 'schoolOnly' && !schoolName) {
+      setError('Add your school to your profile first, or pick a different "Who can join" option.');
       return;
     }
 
@@ -146,7 +138,10 @@ export function StartClubDialog({ onCreated }: StartClubDialogProps) {
         memberCount: 1,
         createdAt: serverTimestamp(),
       };
-      if (form.scope === 'school' && schoolName) payload.schoolName = schoolName;
+      if (form.scope === 'other') payload.customScope = form.customScope.trim();
+      // School-only clubs need the school recorded — it's what decides who
+      // can see and join them.
+      if (form.access === 'schoolOnly' && schoolName) payload.schoolName = schoolName;
       if (form.websiteUrl.trim()) payload.websiteUrl = form.websiteUrl.trim();
 
       const ref = await addDoc(collection(db, 'clubs'), payload);
@@ -280,74 +275,17 @@ export function StartClubDialog({ onCreated }: StartClubDialogProps) {
 
           <div className="flex flex-col gap-1.5">
             <span className="text-sm text-ink">Tags</span>
-            <div className="flex flex-wrap gap-2">
-              {TAG_OPTIONS.map((tag) => (
-                <PillToggle
-                  key={tag}
-                  label={tag}
-                  isActive={form.tags.includes(tag)}
-                  activeColor="purple"
-                  onClick={() => toggleTag(tag)}
-                />
-              ))}
-              {form.tags
-                .filter((tag) => !TAG_OPTIONS.includes(tag))
-                .map((tag) => (
-                  <PillToggle key={tag} label={tag} isActive activeColor="purple" onClick={() => toggleTag(tag)} />
-                ))}
-              {showCustomTagInput ? (
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    autoFocus
-                    value={customTagInput}
-                    onChange={(event) => setCustomTagInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        addCustomTag();
-                      }
-                    }}
-                    onBlur={addCustomTag}
-                    placeholder="Tag name"
-                    className="h-8 w-32"
-                  />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowCustomTagInput(true)}
-                  className="rounded-pill border border-dashed border-olive px-4 py-2 text-sm text-oak hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
-                >
-                  + Custom
-                </button>
-              )}
-            </div>
+            <ClubTagPicker tags={form.tags} onChange={(tags) => updateField('tags', tags)} />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <span className="text-sm text-ink">Where does it meet</span>
-            <div className="flex flex-wrap gap-2">
-              {schoolName && (
-                <PillToggle
-                  label={schoolName}
-                  isActive={form.scope === 'school'}
-                  activeColor="purple"
-                  onClick={() => updateField('scope', 'school')}
-                />
-              )}
-              <PillToggle
-                label="Online"
-                isActive={form.scope === 'online'}
-                activeColor="purple"
-                onClick={() => updateField('scope', 'online')}
-              />
-              <PillToggle
-                label="Hybrid"
-                isActive={form.scope === 'hybrid'}
-                activeColor="purple"
-                onClick={() => updateField('scope', 'hybrid')}
-              />
-            </div>
+            <ClubScopePicker
+              scope={form.scope}
+              customScope={form.customScope}
+              onScopeChange={(scope) => updateField('scope', scope)}
+              onCustomScopeChange={(customScope) => updateField('customScope', customScope)}
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">

@@ -16,6 +16,7 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
+import { syncOwnLandingFeed } from '@/lib/landingFeed';
 import { useAuth } from '@/lib/useAuth';
 import type {
   ClubAccess,
@@ -306,7 +307,7 @@ const DUMMY_CLUBS: DummyClub[] = [
     description: 'Weekly build nights, workshops, and project support for anyone at NNHS who likes to make things.',
     iconName: 'cpu',
     colorName: 'sky',
-    scope: 'school',
+    scope: 'inPerson',
     schoolName: 'Newton North HS',
     access: 'schoolOnly',
     tags: ['Hardware'],
@@ -725,11 +726,27 @@ export default function SeedPage() {
     setIsSeeding(false);
   }
 
+  // Manual trigger for the same sync Home runs automatically once per
+  // session (lib/landingFeed.ts's syncOwnLandingFeed): adds YOUR OWN newest
+  // updates on PUBLIC projects to the signed-out landing page's strip.
+  async function handleBackfillLandingFeed(): Promise<void> {
+    if (!user) return;
+    setIsSeeding(true);
+    setLog([]);
+    try {
+      const added = await syncOwnLandingFeed(user.uid, 20);
+      setLog([added > 0 ? `Added ${added} update(s) to the landing page.` : 'Nothing new to add — your public updates are already there (or you have none).']);
+    } catch (error) {
+      setLog([`Failed: ${String(error)}`]);
+    }
+    setIsSeeding(false);
+  }
+
   return (
     <div className="flex flex-col gap-4 p-8">
       <h1 className="text-lg font-medium text-ink">Seed dummy data</h1>
       {status !== 'authed' && <p className="text-sm text-oak">Sign in first, then reload this page.</p>}
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Button onClick={() => void handleSeed()} disabled={!user || isSeeding} className="self-start">
           {isSeeding ? 'Seeding…' : 'Run project seed'}
         </Button>
@@ -758,6 +775,14 @@ export default function SeedPage() {
           className="self-start"
         >
           {isSeeding ? 'Working…' : 'Find seeded dummy projects'}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => void handleBackfillLandingFeed()}
+          disabled={!user || isSeeding}
+          className="self-start"
+        >
+          {isSeeding ? 'Working…' : 'Add my public updates to the landing page'}
         </Button>
       </div>
       <pre className="text-xs text-oak">{log.join('\n')}</pre>

@@ -1,8 +1,10 @@
 import Link from 'next/link';
 
+import { ProjectCardBanner } from '@/components/features/ProjectCardBanner';
 import { AvatarStack } from '@/components/ui/AvatarStack';
 import { Chip } from '@/components/ui/Chip';
 import { STAGE_LABELS, stageColorFor } from '@/lib/color';
+import { toPlainExcerpt } from '@/lib/mentions';
 import { formatRelativeTime } from '@/lib/time';
 import type { Project } from '@/lib/types';
 import { cn, truncateText } from '@/lib/utils';
@@ -36,10 +38,12 @@ export function MyProjectCard(props: MyProjectCardProps) {
     <Link
       href={`/projects/${project.id}`}
       className={cn(
-        'flex flex-col gap-3 rounded-card bg-white p-5 transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+        'flex flex-col gap-3 overflow-hidden rounded-card bg-white p-5 transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
         isPrivate && 'border border-dashed border-olive shadow-none hover:shadow-none'
       )}
     >
+      <ProjectCardBanner project={project} />
+
       <div className="flex flex-wrap gap-2">
         {project.tags[0] && <Chip label={project.tags[0]} />}
         {isPrivate ? (
@@ -77,7 +81,7 @@ export function MyProjectCard(props: MyProjectCardProps) {
             </div>
             {props.latestEntryPreview && (
               <p className="truncate rounded-card bg-cream px-3 py-2 text-xs text-oak">
-                Latest: {props.latestEntryPreview}
+                Latest: {toPlainExcerpt(props.latestEntryPreview)}
               </p>
             )}
           </>

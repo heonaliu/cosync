@@ -38,6 +38,28 @@ export async function uploadImage(file: File): Promise<string> {
   return data.secure_url;
 }
 
+// Cloudinary's free tier rejects anything bigger on upload anyway — checked
+// up front so people get a clear message instead of a failed request.
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+const CLOUDINARY_UPLOAD_URL = /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//;
+
+/** Only URLs our own uploads produce — anything else stored on a doc
+ * (e.g. hand-edited in the Firebase Console) is ignored, not rendered. */
+export function isCloudinaryImageUrl(url: unknown): url is string {
+  return typeof url === 'string' && CLOUDINARY_UPLOAD_URL.test(url);
+}
+
+// Cloudinary resizes on its CDN when a transformation is inserted right
+// after /upload/ — so a 4000px phone photo is served as a light, right-sized
+// image. Only scaled down, never cropped: the crop happens in CSS
+// (object-cover + the owner's chosen object-position, see ProjectCover), so
+// dragging to reposition can show any part of the photo. f_auto/q_auto pick
+// the best format and quality for the viewer's browser.
+export function toCloudinaryCover(url: string, width: number): string {
+  return url.replace('/image/upload/', `/image/upload/c_limit,w_${width},f_auto,q_auto/`);
+}
+
 // The markdown-image tag this app renders inline — see
 // components/features/RichContent.tsx for the render side.
 export function toImageMarkdown(url: string, alt: string): string {

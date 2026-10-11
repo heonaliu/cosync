@@ -15,13 +15,15 @@ import {
   type Timestamp,
 } from 'firebase/firestore';
 
+import { normalizeClubScope } from '@/lib/clubScopes';
 import { db } from '@/lib/firebase';
+import { isCloudinaryImageUrl } from '@/lib/imageUpload';
 import { getNextEventOccurrence } from '@/lib/time';
 import type {
   Club,
   ClubAccess,
   ClubIconName,
-  ClubScope,
+  CoverPosition,
   Discussion,
   DiscussionKind,
   JoinRequest,
@@ -64,6 +66,8 @@ function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
     visibility: data.visibility ?? 'public',
     lookingFor: normalizeLookingFor(data.lookingFor),
     links: Array.isArray(data.links) ? data.links : undefined,
+    coverImageUrl: isCloudinaryImageUrl(data.coverImageUrl) ? data.coverImageUrl : undefined,
+    coverPosition: toCoverPosition(data.coverPosition),
     memberUids: Array.isArray(data.memberUids) ? data.memberUids : [],
     memberRoles: data.memberRoles,
     followerCount: data.followerCount ?? 0,
@@ -368,7 +372,8 @@ async function clubFromDoc(docSnap: QueryDocumentSnapshot<DocumentData> | Docume
     tags: Array.isArray(data.tags) ? data.tags : [],
     iconName: (data.iconName as ClubIconName) ?? 'cpu',
     colorName: data.colorName ?? 'sky',
-    scope: (data.scope as ClubScope) ?? 'online',
+    scope: normalizeClubScope(data.scope),
+    customScope: typeof data.customScope === 'string' && data.customScope ? data.customScope : undefined,
     schoolName: data.schoolName,
     access: (data.access as ClubAccess) ?? 'anyone',
     memberUids,
@@ -384,6 +389,16 @@ async function clubFromDoc(docSnap: QueryDocumentSnapshot<DocumentData> | Docume
     whatYoullGet: Array.isArray(data.whatYoullGet) ? data.whatYoullGet : undefined,
     createdAt: toMillis(data.createdAt),
   } satisfies Club;
+}
+
+function clampPercent(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 50;
+}
+
+function toCoverPosition(raw: unknown): CoverPosition | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const { x, y } = raw as { x?: unknown; y?: unknown };
+  return { x: clampPercent(x), y: clampPercent(y) };
 }
 
 function isClub(value: Club | null): value is Club {
@@ -404,24 +419,70 @@ export async function getUserClubs(uid: string): Promise<Club[]> {
   return clubs.filter(isClub);
 }
 
+// Every school name already in use — on people's profiles and on clubs —
+// for the school field's suggestions, so the same school doesn't end up
+// spelled three ways ("NNHS", "Newton North", "Newton North HS"), which
+// would quietly break school-only clubs (they match names exactly).
+// Spellings that differ only in case/spacing are merged under the most
+// common one; most-used schools come first.
+//
+// Reads the whole users collection: fine at CoSync's size, but the first
+// thing to replace with a maintained schools/{id} list as it grows.
+export async function getKnownSchools(): Promise<string[]> {
+  const [userSnaps, clubSnaps] = await Promise.all([getDocs(collection(db, 'users')), getDocs(collection(db, 'clubs'))]);
+  const names = [
+    ...userSnaps.docs.map((docSnap) => docSnap.data().school),
+    ...clubSnaps.docs.map((docSnap) => docSnap.data().schoolName),
+  ].filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+
+  const groups = new Map<string, Map<string, number>>();
+  for (const raw of names) {
+    const name = raw.trim().replace(/\s+/g, ' ');
+    const key = name.toLowerCase();
+    const spellings = groups.get(key) ?? new Map<string, number>();
+    spellings.set(name, (spellings.get(name) ?? 0) + 1);
+    groups.set(key, spellings);
+  }
+
+  return [...groups.values()]
+    .map((spellings) => {
+      const [best] = [...spellings.entries()].sort((a, b) => b[1] - a[1]);
+      const total = [...spellings.values()].reduce((sum, count) => sum + count, 0);
+      return { name: best[0], total };
+    })
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+    .map((entry) => entry.name);
+}
+
+// Whether someone who isn't a member can find and freely join this club.
+// Invite-only: never (the code is the only way in). School-only: only
+// students whose profile school matches the club's — and a school-only club
+// with no school recorded is code-only too. firestore.rules mirrors this
+// for the join itself.
+export function isClubOpenTo(club: Club, viewerSchool: string | null): boolean {
+  if (club.access === 'invite') return false;
+  if (club.access === 'schoolOnly') return Boolean(club.schoolName) && club.schoolName === viewerSchool;
+  return true;
+}
+
 // Clubs this user is NOT in yet. Firestore has no "array does not contain"
 // operator, so there's no way to push the exclusion server-side — this
 // fetches every club (the clubs read rule already allows any signed-in user
 // to read the whole collection) and filters out memberships in memory.
 //
-// Invite-only clubs never appear here — the only way in is an admin's
-// invite link (lib/clubInvites.ts).
+// Invite-only clubs, and school-only clubs at other schools, never appear
+// here — the way in is an admin's join code (lib/clubInvites.ts).
 export async function getDiscoverableClubs(uid: string): Promise<Club[]> {
-  const clubs = await getAllClubs();
-  return clubs.filter((club) => club.access !== 'invite' && !club.memberUids.includes(uid));
+  const [clubs, viewer] = await Promise.all([getAllClubs(), getUserInfo(uid)]);
+  return clubs.filter((club) => isClubOpenTo(club, viewer.school) && !club.memberUids.includes(uid));
 }
 
 // Two other clubs sharing at least one tag with `club`, falling back to any
 // other clubs if there's no tag overlap — used by the detail page's
 // "Related clubs" sidebar list.
-export async function getRelatedClubs(club: Club, count: number): Promise<Club[]> {
+export async function getRelatedClubs(club: Club, count: number, viewerSchool: string | null): Promise<Club[]> {
   const clubs = (await getAllClubs()).filter(
-    (candidate) => candidate.id !== club.id && candidate.access !== 'invite'
+    (candidate) => candidate.id !== club.id && isClubOpenTo(candidate, viewerSchool)
   );
   const scored = clubs
     .map((candidate) => ({

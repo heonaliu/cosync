@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
+import { JoinClubByCodeDialog } from '@/components/features/JoinClubByCodeDialog';
 import { JoinableClubCard } from '@/components/features/JoinableClubCard';
 import { MyClubCard } from '@/components/features/MyClubCard';
 import { StartClubDialog } from '@/components/features/StartClubDialog';
 import { PillToggle } from '@/components/ui/PillToggle';
-import { getClubDiscussions, getDiscoverableClubs, getUserClubs } from '@/lib/queries';
+import { getClubDiscussions, getDiscoverableClubs, getUserClubs, getUserInfo } from '@/lib/queries';
 import { getNextEventOccurrence } from '@/lib/time';
 import type { Club, Discussion } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
@@ -47,6 +48,7 @@ export function ClubsBoard() {
   const [myClubs, setMyClubs] = useState<MyClubEntry[] | null>(null);
   const [discoverableClubs, setDiscoverableClubs] = useState<Club[] | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
+  const [viewerSchool, setViewerSchool] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export function ClubsBoard() {
     let cancelled = false;
 
     async function load(): Promise<void> {
-      const [mine, discoverable] = await Promise.all([getUserClubs(uid), getDiscoverableClubs(uid)]);
+      const [mine, discoverable, viewer] = await Promise.all([getUserClubs(uid), getDiscoverableClubs(uid), getUserInfo(uid)]);
 
       const mineWithActivity = await Promise.all(
         mine.map(async (club) => {
@@ -67,6 +69,7 @@ export function ClubsBoard() {
       if (!cancelled) {
         setMyClubs(mineWithActivity);
         setDiscoverableClubs(discoverable);
+        setViewerSchool(viewer.school);
       }
     }
 
@@ -110,7 +113,7 @@ export function ClubsBoard() {
 
   const filteredDiscoverable = (discoverableClubs ?? []).filter((club) => {
     if (filter === 'All' || filter === 'Nearby') return true; // Nearby has no geo data yet — visual only, like Home's feed filters.
-    if (filter === 'Your school') return club.scope === 'school';
+    if (filter === 'Your school') return Boolean(viewerSchool) && club.schoolName === viewerSchool;
     return club.scope === 'online';
   });
 
@@ -119,7 +122,10 @@ export function ClubsBoard() {
       <section className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-[22px] font-medium text-ink">Your clubs</h1>
-          <StartClubDialog onCreated={() => setReloadToken((token) => token + 1)} />
+          <div className="flex flex-wrap gap-2">
+            <JoinClubByCodeDialog />
+            <StartClubDialog onCreated={() => setReloadToken((token) => token + 1)} />
+          </div>
         </div>
 
         {!myClubs && <p className="text-sm text-sand">Loading your clubs…</p>}

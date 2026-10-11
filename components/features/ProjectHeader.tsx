@@ -8,6 +8,8 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { EditProjectDialog } from '@/components/features/EditProjectDialog';
+import { ProjectCover } from '@/components/features/ProjectCover';
+import { ProjectCoverEditor } from '@/components/features/ProjectCoverEditor';
 import { ProjectTeamModal } from '@/components/features/ProjectTeamModal';
 import { ReportButton } from '@/components/features/ReportButton';
 import { AvatarStack } from '@/components/ui/AvatarStack';
@@ -23,6 +25,7 @@ import {
 import { ExpandableText } from '@/components/ui/ExpandableText';
 import { STAGE_LABELS, stageColorFor } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { removeProjectFromLandingFeed } from '@/lib/landingFeed';
 import { isProjectManager } from '@/lib/projectRoles';
 import type { UserInfo } from '@/lib/queries';
 import { formatNameList, formatRelativeTime } from '@/lib/time';
@@ -73,6 +76,11 @@ export function ProjectHeader({
     : formatNameList(avatarNames);
 
   async function handleDeleteProject(): Promise<void> {
+    // Before the project itself — the rule that lets an owner clear other
+    // members' landing-feed copies checks ownership on the project doc.
+    await removeProjectFromLandingFeed(project.id).catch((error: unknown) =>
+      console.error('Failed to remove project from the landing feed:', error)
+    );
     await deleteDoc(doc(db, 'projects', project.id));
     router.push('/projects');
   }
@@ -113,6 +121,12 @@ export function ProjectHeader({
         <span aria-hidden="true">›</span>
         <span className="text-ink">{project.title}</span>
       </nav>
+
+      {isOwner ? (
+        <ProjectCoverEditor project={project} onChanged={onProjectChanged} />
+      ) : (
+        project.coverImageUrl && <ProjectCover url={project.coverImageUrl} variant="header" position={project.coverPosition} className="rounded-card" />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {project.tags.map((tag) => (

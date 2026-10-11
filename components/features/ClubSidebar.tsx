@@ -4,6 +4,7 @@ import { IconCheck, IconFileText, IconLink, IconPencil, IconWorld } from '@table
 import { deleteField, doc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 
+import { ClubMembersDialog } from '@/components/features/ClubMembersDialog';
 import { EditClubWebsiteDialog } from '@/components/features/EditClubWebsiteDialog';
 import { EditLinksDialog } from '@/components/features/EditLinksDialog';
 import { MemberAvatarStack } from '@/components/features/MemberAvatarStack';
@@ -29,7 +30,21 @@ export function ClubSidebar({ club, isMember, isAdmin, memberPreviewNames, relat
       <MemberAvatarStack
         memberNames={memberPreviewNames}
         totalCount={club.memberCount}
-        seeAllHref={isMember ? `/clubs/${club.id}/members` : undefined}
+        seeAll={
+          isMember && (
+            <ClubMembersDialog
+              club={club}
+              trigger={
+                <button
+                  type="button"
+                  className="self-start rounded-pill text-sm text-deep-fresh hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+                >
+                  See all members
+                </button>
+              }
+            />
+          )
+        }
       />
 
       {/* Everyone sees the website under the club's name in ClubHeader —

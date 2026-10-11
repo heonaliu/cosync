@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -12,7 +13,7 @@ import { ClubHeader } from '@/components/features/ClubHeader';
 import { ClubSidebar } from '@/components/features/ClubSidebar';
 import { UpcomingEventsList } from '@/components/features/UpcomingEventsList';
 import { getNextEventOccurrence } from '@/lib/time';
-import { getClub, getClubDiscussions, getClubMemberPreviews, getRelatedClubs } from '@/lib/queries';
+import { getClub, getClubDiscussions, getClubMemberPreviews, getRelatedClubs, getUserInfo, isClubOpenTo } from '@/lib/queries';
 import type { Club, Discussion } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 import { useJoinClub } from '@/lib/useJoinClub';
@@ -32,11 +33,13 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [memberPreviewNames, setMemberPreviewNames] = useState<string[]>([]);
   const [relatedClubs, setRelatedClubs] = useState<Club[]>([]);
+  const [viewerSchool, setViewerSchool] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const { join, isJoining } = useJoinClub(clubId);
 
   useEffect(() => {
     if (!user) return;
+    const uid = user.uid;
     let cancelled = false;
 
     async function load(): Promise<void> {
@@ -46,13 +49,15 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
         return;
       }
 
+      const viewer = await getUserInfo(uid);
       const [fetchedDiscussions, previewNames, related] = await Promise.all([
         getClubDiscussions(clubId, fetchedClub),
         getClubMemberPreviews(fetchedClub.memberUids, 5),
-        getRelatedClubs(fetchedClub, 2),
+        getRelatedClubs(fetchedClub, 2, viewer.school),
       ]);
 
       if (!cancelled) {
+        setViewerSchool(viewer.school);
         setClub(fetchedClub);
         setDiscussions(fetchedDiscussions);
         setMemberPreviewNames(previewNames);
@@ -72,7 +77,9 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
 
   async function handleJoin(): Promise<void> {
     try {
-      await join(club?.access === 'invite' ? inviteCode : undefined);
+      // A code only matters (and only gets spent) for a club this person
+      // couldn't otherwise join.
+      await join(club && !isClubOpenTo(club, viewerSchool) ? inviteCode : undefined);
       // The code's been spent — drop it so a copied URL from here on is
       // just the club's plain page link.
       if (inviteCode) router.replace(`/clubs/${clubId}`);
@@ -96,14 +103,23 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
 
   const isMember = Boolean(user && club.memberUids.includes(user.uid));
   const isAdmin = Boolean(user && club.adminUids.includes(user.uid));
-  const canJoin = club.access !== 'invite' || Boolean(inviteCode);
+  const isOpenToViewer = isClubOpenTo(club, viewerSchool);
+  const canJoin = isOpenToViewer || Boolean(inviteCode);
 
-  // Invite-only clubs stay out of sight for anyone who wasn't sent the link:
-  // no description, no discussion previews, nothing to join.
-  if (club.access === 'invite' && !isMember && !inviteCode) {
+  // Invite-only clubs, and school-only clubs at someone else's school, stay
+  // out of sight for anyone without a code: no description, no discussion
+  // previews, nothing to join.
+  if (!isOpenToViewer && !isMember && !inviteCode) {
     return (
       <p className="text-sm text-oak">
-        This club is invite only. If you&apos;d like to join, ask one of its admins for an invite link.
+        {club.access === 'invite'
+          ? 'This club is invite only.'
+          : `This club is only open to students at ${club.schoolName ?? 'its school'}.`}{' '}
+        If you&apos;d like to join, ask one of its admins for the join code, then use{' '}
+        <Link href="/clubs" className="text-deep-fresh hover:underline">
+          Join club via code
+        </Link>{' '}
+        on the Clubs page.
       </p>
     );
   }
@@ -140,6 +156,7 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
         onJoin={() => void handleJoin()}
         isJoining={isJoining}
         onLeft={handleLeft}
+        onClubChanged={() => setReloadToken((token) => token + 1)}
       />
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -163,6 +180,7 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
             isMember={isMember}
             onJoin={() => void handleJoin()}
             isJoining={isJoining}
+            onChanged={handleEventChanged}
           />
         </div>
 

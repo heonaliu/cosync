@@ -9,9 +9,10 @@ type ClubDiscussionListProps = {
   isMember: boolean;
   onJoin: () => void;
   isJoining: boolean;
+  onChanged: () => void;
 };
 
-export function ClubDiscussionList({ discussions, isMember, onJoin, isJoining }: ClubDiscussionListProps) {
+export function ClubDiscussionList({ discussions, isMember, onJoin, isJoining, onChanged }: ClubDiscussionListProps) {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-[22px] font-medium text-ink">Recent discussions</h2>
@@ -20,7 +21,13 @@ export function ClubDiscussionList({ discussions, isMember, onJoin, isJoining }:
         <p className="text-sm text-oak">No discussions yet — be the first to post.</p>
       ) : (
         discussions.map((discussion) => (
-          <DiscussionCard key={discussion.id} discussion={discussion} muted={!isMember} isMember={isMember} />
+          <DiscussionCard
+            key={discussion.id}
+            discussion={discussion}
+            muted={!isMember}
+            isMember={isMember}
+            onDeleted={onChanged}
+          />
         ))
       )}
 

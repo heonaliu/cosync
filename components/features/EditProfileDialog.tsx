@@ -1,8 +1,9 @@
 'use client';
 
-import { doc, setDoc } from 'firebase/firestore';
+import { deleteField, doc, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 
+import { SchoolInput } from '@/components/features/SchoolInput';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,8 +27,9 @@ type EditProfileDialogProps = {
   currentDisplayName: string;
   currentInterests: string[];
   currentBio: string;
+  currentSchool: string;
   trigger: React.ReactNode;
-  onSaved: (updated: { displayName: string; interests: string[]; bio: string }) => void;
+  onSaved: (updated: { displayName: string; interests: string[]; bio: string; school: string | null }) => void;
 };
 
 // Shared by the header's "Edit" button and the Interests section itself
@@ -38,12 +40,14 @@ export function EditProfileDialog({
   currentDisplayName,
   currentInterests,
   currentBio,
+  currentSchool,
   trigger,
   onSaved,
 }: EditProfileDialogProps) {
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(currentDisplayName);
   const [bio, setBio] = useState(currentBio);
+  const [school, setSchool] = useState(currentSchool);
   const [selectedInterests, setSelectedInterests] = useState<string[]>(currentInterests);
   const [customTagInput, setCustomTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -64,6 +68,7 @@ export function EditProfileDialog({
       setDisplayName(currentDisplayName);
       setSelectedInterests(currentInterests);
       setBio(currentBio);
+      setSchool(currentSchool);
       setError(null);
     }
   }
@@ -90,12 +95,18 @@ export function EditProfileDialog({
     try {
       const trimmedName = displayName.trim();
       const trimmedBio = bio.trim();
+      const trimmedSchool = school.trim().replace(/\s+/g, ' ');
       await setDoc(
         doc(db, 'users', uid),
-        { displayName: trimmedName, interests: selectedInterests, bio: trimmedBio },
+        {
+          displayName: trimmedName,
+          interests: selectedInterests,
+          bio: trimmedBio,
+          school: trimmedSchool || deleteField(),
+        },
         { merge: true }
       );
-      onSaved({ displayName: trimmedName, interests: selectedInterests, bio: trimmedBio });
+      onSaved({ displayName: trimmedName, interests: selectedInterests, bio: trimmedBio, school: trimmedSchool || null });
       setOpen(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Something went wrong.');
@@ -135,6 +146,14 @@ export function EditProfileDialog({
             <span className="self-end text-xs text-sand">
               {bio.length}/{BIO_MAX_LENGTH}
             </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="edit-profile-school" className="text-sm text-ink">
+              School <span className="text-sand">(optional)</span>
+            </label>
+            <SchoolInput id="edit-profile-school" value={school} onChange={setSchool} />
+            <span className="text-xs text-sand">Lets you find and join clubs that are only for your school.</span>
           </div>
 
           <div className="flex flex-col gap-3">

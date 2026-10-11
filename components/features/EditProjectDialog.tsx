@@ -3,6 +3,7 @@
 import { deleteField, doc, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
 
+import { CoverImageField } from '@/components/features/CoverImageField';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,6 +19,7 @@ import { PillToggle } from '@/components/ui/PillToggle';
 import { Textarea } from '@/components/ui/Textarea';
 import { STAGE_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { removeProjectFromLandingFeed, renameProjectInLandingFeed } from '@/lib/landingFeed';
 import { PROJECT_CATEGORY_TAGS } from '@/lib/tags';
 import type { Project, ProjectStage, ProjectVisibility } from '@/lib/types';
 
@@ -48,6 +50,8 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
   const [stage, setStage] = useState<ProjectStage>(project.stage);
   const [liveUrl, setLiveUrl] = useState(project.liveUrl ?? '');
   const [visibility, setVisibility] = useState<ProjectVisibility>(project.visibility);
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(project.coverImageUrl ?? null);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [customTagInput, setCustomTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,8 +85,24 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
       // Chip/Link rendering elsewhere expecting a real URL or nothing —
       // clearing it (switching off launched, or blanking the field) removes
       // the field entirely rather than leaving a stale/empty one behind.
+      payload.coverImageUrl = coverImageUrl ?? deleteField();
+      // A different photo starts centered — the saved focal point was picked
+      // for the old one.
+      if (coverImageUrl !== (project.coverImageUrl ?? null)) payload.coverPosition = deleteField();
       payload.liveUrl = stage === 'launched' && liveUrl.trim() ? liveUrl.trim() : deleteField();
       await updateDoc(doc(db, 'projects', project.id), payload);
+
+      // The landing page only ever shows public projects, under their
+      // current name. Best-effort: the project edit itself already saved.
+      if (project.visibility === 'public' && visibility !== 'public') {
+        removeProjectFromLandingFeed(project.id).catch((landingError: unknown) =>
+          console.error('Failed to remove project from the landing feed:', landingError)
+        );
+      } else if (visibility === 'public' && title.trim() !== project.title) {
+        renameProjectInLandingFeed(project.id, title.trim()).catch((landingError: unknown) =>
+          console.error('Failed to rename project in the landing feed:', landingError)
+        );
+      }
       setOpen(false);
       onSaved();
     } catch (saveError) {
@@ -96,6 +116,7 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
+        if (nextOpen) setCoverImageUrl(project.coverImageUrl ?? null);
         setOpen(nextOpen);
         if (!nextOpen) setError(null);
       }}
@@ -131,6 +152,13 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink">
+              Cover photo <span className="text-sand">(optional)</span>
+            </span>
+            <CoverImageField value={coverImageUrl} onChange={setCoverImageUrl} onUploadingChange={setIsUploadingCover} />
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -227,7 +255,7 @@ export function EditProjectDialog({ project, trigger, onSaved }: EditProjectDial
           <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>
             Cancel
           </Button>
-          <Button type="button" disabled={isSaving || !canSave} onClick={() => void handleSave()}>
+          <Button type="button" disabled={isSaving || isUploadingCover || !canSave} onClick={() => void handleSave()}>
             {isSaving ? 'Saving…' : 'Save changes'}
           </Button>
         </DialogFooter>

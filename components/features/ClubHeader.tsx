@@ -1,11 +1,14 @@
 'use client';
 
 import { IconDotsVertical, IconLock, IconShare, IconWorld } from '@tabler/icons-react';
-import { arrayRemove, doc, increment, updateDoc } from 'firebase/firestore';
+import { arrayRemove, deleteDoc, doc, increment, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { ClubBadge } from '@/components/features/ClubBadge';
+import { ClubJoinCodeDialog } from '@/components/features/ClubJoinCodeDialog';
+import { EditClubDialog } from '@/components/features/EditClubDialog';
 import { ReportButton } from '@/components/features/ReportButton';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/Chip';
@@ -17,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ExpandableText } from '@/components/ui/ExpandableText';
+import { clubScopeLabel } from '@/lib/clubScopes';
 import { buildClubInviteUrl, getOrCreateClubInviteCode } from '@/lib/clubInvites';
 import { db } from '@/lib/firebase';
 import { formatClubActivity } from '@/lib/time';
@@ -34,6 +38,7 @@ type ClubHeaderProps = {
   onJoin: () => void;
   isJoining: boolean;
   onLeft: () => void;
+  onClubChanged: () => void;
 };
 
 async function copyClubLink(message: string, url = window.location.href): Promise<void> {
@@ -45,8 +50,10 @@ async function copyClubLink(message: string, url = window.location.href): Promis
   toast.success(message);
 }
 
-export function ClubHeader({ club, isMember, isAdmin, canJoin, lastDiscussionAt, onJoin, isJoining, onLeft }: ClubHeaderProps) {
+export function ClubHeader({ club, isMember, isAdmin, canJoin, lastDiscussionAt, onJoin, isJoining, onLeft, onClubChanged }: ClubHeaderProps) {
   const { user } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
+  const [joinCodeOpen, setJoinCodeOpen] = useState(false);
   const isInviteOnly = club.access === 'invite';
 
   // An invite-only club's page URL alone won't let anyone in — the link has
@@ -61,8 +68,18 @@ export function ClubHeader({ club, isMember, isAdmin, canJoin, lastDiscussionAt,
     }
   }
 
+  // The last person out takes the club with them — an empty club has no
+  // one to run it and would just clutter Discover.
+  const isLastMember = Boolean(user) && club.memberUids.length === 1 && club.memberUids[0] === user?.uid;
+
   async function handleLeave(): Promise<void> {
     if (!user) return;
+    if (isLastMember) {
+      await deleteDoc(doc(db, 'clubs', club.id));
+      toast.success('You were the last member, so the club was deleted.');
+      onLeft();
+      return;
+    }
     await updateDoc(doc(db, 'clubs', club.id), {
       memberUids: arrayRemove(user.uid),
       memberCount: increment(-1),
@@ -92,11 +109,8 @@ export function ClubHeader({ club, isMember, isAdmin, canJoin, lastDiscussionAt,
               {club.tags.map((tag) => (
                 <Chip key={tag} label={tag} />
               ))}
-              {club.schoolName ? (
-                <Chip label={club.schoolName} color="lilac" />
-              ) : (
-                <Chip label={club.scope === 'online' ? 'Online' : 'Hybrid'} color="lilac" />
-              )}
+              <Chip label={clubScopeLabel(club)} color="lilac" />
+              {club.schoolName && <Chip label={club.schoolName} color="lilac" />}
               {isInviteOnly && (
                 <span className="inline-flex items-center gap-1 rounded-pill border border-olive px-3 py-1 text-xs font-medium text-oak">
                   <IconLock className="size-3.5" aria-hidden="true" />
@@ -139,18 +153,28 @@ export function ClubHeader({ club, isMember, isAdmin, canJoin, lastDiscussionAt,
 
           {isMember ? (
             <>
-              <DropdownMenu>
+              {/* modal={false}: otherwise opening "Edit club" from the menu can
+                  leave the page unclickable after the dialog closes. */}
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button type="button" variant="outline" size="icon-sm" aria-label="More options">
                     <IconDotsVertical className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {isAdmin && <DropdownMenuItem onSelect={() => setEditOpen(true)}>Edit club</DropdownMenuItem>}
+                  {isAdmin && club.access !== 'anyone' && (
+                    <DropdownMenuItem onSelect={() => setJoinCodeOpen(true)}>Join code</DropdownMenuItem>
+                  )}
                   <ConfirmDialog
                     trigger={<DropdownMenuItem onSelect={(event) => event.preventDefault()}>Leave club</DropdownMenuItem>}
-                    title="Leave this club?"
-                    description="You can rejoin any time, but you'll lose access to member-only discussions until you do."
-                    confirmLabel="Leave club"
+                    title={isLastMember ? 'Leave and delete this club?' : 'Leave this club?'}
+                    description={
+                      isLastMember
+                        ? "You're the only member left, so leaving will permanently delete the club and its discussions."
+                        : "You can rejoin any time, but you'll lose access to member-only discussions until you do."
+                    }
+                    confirmLabel={isLastMember ? 'Leave and delete' : 'Leave club'}
                     onConfirm={handleLeave}
                   />
                 </DropdownMenuContent>
@@ -179,6 +203,9 @@ export function ClubHeader({ club, isMember, isAdmin, canJoin, lastDiscussionAt,
           )}
         </div>
       </div>
+
+      {isAdmin && <EditClubDialog club={club} open={editOpen} onOpenChange={setEditOpen} onSaved={onClubChanged} />}
+      {isAdmin && <ClubJoinCodeDialog club={club} open={joinCodeOpen} onOpenChange={setJoinCodeOpen} />}
     </div>
   );
 }

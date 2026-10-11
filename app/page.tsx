@@ -2,17 +2,11 @@ import { IconArrowRight, IconBook2, IconSparkles, IconUsers } from '@tabler/icon
 
 import { FeatureCard } from '@/components/features/FeatureCard';
 import { GoogleSignInButton } from '@/components/features/GoogleSignInButton';
-import { ProjectCard } from '@/components/features/ProjectCard';
+import { LandingJournalTicker } from '@/components/features/LandingJournalTicker';
 import { RedirectIfSignedIn } from '@/components/features/RedirectIfSignedIn';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { getPublicProjects } from '@/lib/queries';
 
-export default async function LandingPage() {
-  const recentProjects = await getPublicProjects(3).catch((error: unknown) => {
-    console.error('Failed to load recent projects:', error);
-    return [];
-  });
-
+export default function LandingPage() {
   return (
     <PageContainer className="flex flex-col gap-16 py-12">
       <RedirectIfSignedIn />
@@ -55,18 +49,8 @@ export default async function LandingPage() {
       </section>
 
       <section className="flex flex-col gap-5">
-        <h2 className="text-[22px] font-medium text-ink">Recent projects</h2>
-        {recentProjects.length > 0 ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-            {recentProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-oak">
-            No projects have been shared publicly yet — be the first to post one once you sign in.
-          </p>
-        )}
+        <h2 className="text-[22px] font-medium text-ink">Fresh from the build journals</h2>
+        <LandingJournalTicker />
       </section>
     </PageContainer>
   );

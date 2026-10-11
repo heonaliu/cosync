@@ -17,6 +17,8 @@ export type LookingForRole = { role: string; description: string };
 /** Cap on Project.lookingFor — enforced by EditLookingForDialog. */
 export const MAX_LOOKING_FOR_ROLES = 3;
 
+export type CoverPosition = { x: number; y: number };
+
 export type Project = {
   id: string;
   ownerUid: string;
@@ -36,6 +38,13 @@ export type Project = {
    * sidebar. Owner-editable, same "empty section renders nothing" pattern as
    * Club.pinnedResources. */
   links?: { label: string; url: string }[];
+  /** Cloudinary URL of the uploaded cover photo (the original — cards and
+   * the header request resized versions, see toCloudinaryCover). */
+  coverImageUrl?: string;
+  /** Which part of the cover stays in view when it's cropped to fit, as
+   * CSS object-position percentages (0–100). Set by dragging the cover on
+   * the project page; centered when absent. */
+  coverPosition?: CoverPosition;
   memberUids: string[];
   memberRoles?: Record<string, ProjectMemberRole>;
   followerCount: number;
@@ -147,7 +156,7 @@ export type SavedOpportunity = {
 
 export type ClubIconName = 'cpu' | 'robot' | 'brain' | 'palette' | 'book' | 'music';
 export type ClubColorName = 'sky' | 'amber' | 'sage' | 'lilac' | 'peach';
-export type ClubScope = 'school' | 'online' | 'hybrid';
+export type ClubScope = 'online' | 'hybrid' | 'inPerson' | 'other';
 // 'invite' clubs are left out of Discover/Related entirely and can only be
 // joined through an admin's invite link — see lib/clubInvites.ts.
 export type ClubAccess = 'anyone' | 'schoolOnly' | 'invite';
@@ -160,6 +169,8 @@ export type Club = {
   iconName: ClubIconName;
   colorName: ClubColorName;
   scope: ClubScope;
+  /** Written-in meeting place when scope is 'other' (max 30 chars). */
+  customScope?: string;
   schoolName?: string;
   access: ClubAccess;
   memberUids: string[];

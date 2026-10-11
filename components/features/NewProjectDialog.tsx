@@ -4,6 +4,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { CoverImageField } from '@/components/features/CoverImageField';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -30,6 +31,7 @@ type FormState = {
   tags: string[];
   stage: ProjectStage;
   visibility: ProjectVisibility;
+  coverImageUrl: string | null;
 };
 
 const EMPTY_FORM: FormState = {
@@ -39,6 +41,7 @@ const EMPTY_FORM: FormState = {
   tags: [],
   stage: 'idea',
   visibility: 'public',
+  coverImageUrl: null,
 };
 
 const STAGE_OPTIONS: ProjectStage[] = ['idea', 'prototyping', 'shipping'];
@@ -60,6 +63,7 @@ export function NewProjectDialog({ onCreated }: NewProjectDialogProps) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [customTagInput, setCustomTagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]): void {
@@ -102,6 +106,7 @@ export function NewProjectDialog({ onCreated }: NewProjectDialogProps) {
         visibility: form.visibility,
         memberUids: [user.uid],
         followerCount: 0,
+        ...(form.coverImageUrl ? { coverImageUrl: form.coverImageUrl } : {}),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -172,6 +177,13 @@ export function NewProjectDialog({ onCreated }: NewProjectDialogProps) {
               onChange={(event) => updateField('description', event.target.value)}
               placeholder="More detail for the project page — defaults to your pitch if left blank."
             />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink">
+              Cover photo <span className="text-sand">(optional)</span>
+            </span>
+            <CoverImageField value={form.coverImageUrl} onChange={(url) => updateField('coverImageUrl', url)} onUploadingChange={setIsUploadingCover} />
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -257,7 +269,7 @@ export function NewProjectDialog({ onCreated }: NewProjectDialogProps) {
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || isUploadingCover}>
               {isSubmitting ? 'Creating…' : 'Create project'}
             </Button>
           </DialogFooter>

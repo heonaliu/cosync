@@ -10,6 +10,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { db } from '@/lib/firebase';
+import { removeFromLandingFeed } from '@/lib/landingFeed';
 import { encodeThreadId } from '@/lib/thread';
 import { formatRelativeTime } from '@/lib/time';
 import type { JournalEntry } from '@/lib/types';
@@ -41,6 +42,9 @@ export function JournalEntryCard({ entry, canDelete, onDeleted }: JournalEntryCa
   async function handleDelete(): Promise<void> {
     try {
       await deleteDoc(doc(db, 'projects', entry.projectId, 'journalEntries', entry.id));
+      // Most entries were never in the landing feed (non-public project,
+      // or posted before it existed), so a failure here is expected noise.
+      removeFromLandingFeed(entry.id).catch(() => undefined);
       onDeleted?.();
     } catch (error) {
       console.error('Failed to delete entry:', error);

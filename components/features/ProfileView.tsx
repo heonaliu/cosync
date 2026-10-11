@@ -1,6 +1,6 @@
 'use client';
 
-import { IconPinFilled, IconShieldCheck } from '@tabler/icons-react';
+import { IconPinFilled } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -146,12 +146,14 @@ export function ProfileView({ uid }: ProfileViewProps) {
     displayName,
     interests: nextInterests,
     bio,
+    school,
   }: {
     displayName: string;
     interests: string[];
     bio: string;
+    school: string | null;
   }): void {
-    setInfo((previous) => (previous ? { ...previous, name: displayName, bio } : previous));
+    setInfo((previous) => (previous ? { ...previous, name: displayName, bio, school } : previous));
     setInterests(nextInterests);
   }
 
@@ -193,12 +195,6 @@ export function ProfileView({ uid }: ProfileViewProps) {
 
             <div className="flex flex-wrap items-center gap-2">
               <Chip label={info.role === 'educator' ? 'Educator' : 'Student'} color={info.role === 'educator' ? 'lilac' : 'sage'} />
-              {info.role === 'educator' && info.verified && (
-                <span className="inline-flex items-center gap-1 text-sm text-deep-fresh">
-                  <IconShieldCheck className="size-4" aria-hidden="true" />
-                  Verified
-                </span>
-              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-4 pt-1 text-sm text-oak">
@@ -238,6 +234,7 @@ export function ProfileView({ uid }: ProfileViewProps) {
             currentDisplayName={info.name}
             currentInterests={interests}
             currentBio={info.bio ?? ''}
+            currentSchool={info.school ?? ''}
             onSaved={handleProfileSaved}
             trigger={
               <Button type="button" variant="outline" size="sm">
@@ -266,6 +263,7 @@ export function ProfileView({ uid }: ProfileViewProps) {
             currentDisplayName={info.name}
             currentInterests={interests}
             currentBio={info.bio ?? ''}
+            currentSchool={info.school ?? ''}
             onSaved={handleProfileSaved}
             trigger={
               <button

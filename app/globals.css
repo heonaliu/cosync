@@ -6,6 +6,9 @@
 @config "../tailwind.config.ts";
 
 @theme inline {
+  /* Landing page's journal ticker (LandingJournalTicker). The track holds
+     two copies of the list, so sliding it by half loops seamlessly. */
+  --animate-marquee: marquee 60s linear infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -191,3 +194,8 @@
  * (.pac-logo / a ::after on the container) — Google's Maps Platform terms
  * require this stay visible, so it's deliberately left unstyled here rather
  * than hidden. */
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}

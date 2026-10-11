@@ -1,6 +1,6 @@
 'use client';
 
-import { IconMapPin, IconShieldCheck, IconSparkles } from '@tabler/icons-react';
+import { IconMapPin, IconSparkles } from '@tabler/icons-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -90,12 +90,6 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
               {opportunity.posterName}
             </Link>
           </span>
-          {opportunity.posterVerified && (
-            <span className="inline-flex items-center gap-1 whitespace-nowrap text-deep-fresh">
-              <IconShieldCheck className="size-4" aria-hidden="true" />
-              Verified educator
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-2">
           <OpportunityDetailsDialog

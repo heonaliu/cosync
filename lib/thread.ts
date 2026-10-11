@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { updateLandingFeedExcerpt } from '@/lib/landingFeed';
 import { toPlainExcerpt } from '@/lib/mentions';
 import { sendThreadNotification } from '@/lib/notifications';
 import { getUserInfo, toMillis } from '@/lib/queries';
@@ -160,6 +161,9 @@ export async function updateThreadPost(ref: ThreadRef, edit: { content: string; 
   const payload: Record<string, unknown> = { content: edit.content, editedAt: serverTimestamp() };
   if (ref.kind === 'discussion' && edit.title !== undefined) payload.title = edit.title;
   await updateDoc(postDocRef(ref), payload);
+  // Keep the landing page's copy in step. Fails harmlessly when this entry
+  // was never in the landing feed (non-public project).
+  if (ref.kind === 'journal') updateLandingFeedExcerpt(ref.entryId, edit.content).catch(() => undefined);
 }
 
 function commentFromDoc(id: string, data: DocumentData): Comment {

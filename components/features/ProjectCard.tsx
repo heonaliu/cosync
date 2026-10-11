@@ -2,6 +2,7 @@ import { IconSparkles } from '@tabler/icons-react';
 import Link from 'next/link';
 
 import { LookingForCallout } from '@/components/features/LookingForCallout';
+import { ProjectCardBanner } from '@/components/features/ProjectCardBanner';
 import { Chip } from '@/components/ui/Chip';
 import type { Project } from '@/lib/types';
 import { truncateText } from '@/lib/utils';
@@ -35,8 +36,10 @@ export function ProjectCard({
   return (
     <Link
       href={`/projects/${project.id}`}
-      className="flex flex-col gap-3 rounded-card bg-white p-5 transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+      className="flex flex-col gap-3 overflow-hidden rounded-card bg-white p-5 transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
     >
+      <ProjectCardBanner project={project} />
+
       {recommendationReason && (
         <div className="flex items-center gap-1.5 text-xs text-sand">
           <IconSparkles className="size-3.5 text-deep-fresh" aria-hidden="true" />
