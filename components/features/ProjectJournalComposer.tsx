@@ -1,7 +1,7 @@
 'use client';
 
 import { IconCode, IconPhoto, IconX } from '@tabler/icons-react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -97,6 +97,16 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
 
       await addDoc(collection(db, 'projects', project.id, 'journalEntries'), payload);
 
+      // Keeps the project's updatedAt honest as "last real activity," not
+      // just "last edited by the owner" — Home's quiet-project nudge
+      // (HomeFeed) reads this field to decide whether to remind YOU
+      // specifically to post an update, so it has to move every time
+      // anyone actually posts one. Best-effort: a failure here shouldn't
+      // block the journal entry that already saved successfully.
+      updateDoc(doc(db, 'projects', project.id), { updatedAt: serverTimestamp() }).catch((error: unknown) => {
+        console.error("Failed to bump project's updatedAt:", error);
+      });
+
       setContent('');
       setAttachments([]);
       onPosted();
@@ -109,7 +119,7 @@ export function ProjectJournalComposer({ project, onPosted }: ProjectJournalComp
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-card bg-sage p-5">
+    <div id="composer" className="flex scroll-mt-24 flex-col gap-3 rounded-card bg-sage p-5">
       <div className="flex items-center gap-2">
         <Avatar name={user?.displayName ?? user?.email ?? 'You'} size="sm" decorative />
         <span className="text-sm font-medium text-ink">Post an update</span>

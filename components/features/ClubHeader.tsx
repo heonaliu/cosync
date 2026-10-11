@@ -1,6 +1,6 @@
 'use client';
 
-import { IconDotsVertical, IconShare, IconShieldCheck } from '@tabler/icons-react';
+import { IconDotsVertical, IconLock, IconShare, IconShieldCheck, IconWorld } from '@tabler/icons-react';
 import { arrayRemove, doc, increment, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -16,22 +16,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { buildClubInviteUrl, getOrCreateClubInviteCode } from '@/lib/clubInvites';
 import { db } from '@/lib/firebase';
 import { formatClubActivity } from '@/lib/time';
 import type { Club } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
+import { toExternalHref } from '@/lib/utils';
 
 type ClubHeaderProps = {
   club: Club;
   isMember: boolean;
+  isAdmin: boolean;
+  /** False for an invite-only club opened without a valid ?invite= link. */
+  canJoin: boolean;
   lastDiscussionAt?: number;
   onJoin: () => void;
   isJoining: boolean;
   onLeft: () => void;
 };
 
-async function copyClubLink(message: string): Promise<void> {
-  const url = window.location.href;
+async function copyClubLink(message: string, url = window.location.href): Promise<void> {
   if (navigator.share) {
     await navigator.share({ title: document.title, url }).catch(() => undefined);
     return;
@@ -40,8 +44,21 @@ async function copyClubLink(message: string): Promise<void> {
   toast.success(message);
 }
 
-export function ClubHeader({ club, isMember, lastDiscussionAt, onJoin, isJoining, onLeft }: ClubHeaderProps) {
+export function ClubHeader({ club, isMember, isAdmin, canJoin, lastDiscussionAt, onJoin, isJoining, onLeft }: ClubHeaderProps) {
   const { user } = useAuth();
+  const isInviteOnly = club.access === 'invite';
+
+  // An invite-only club's page URL alone won't let anyone in — the link has
+  // to carry the club's secret code, which only admins can read.
+  async function handleCopyInviteLink(): Promise<void> {
+    try {
+      const code = await getOrCreateClubInviteCode(club.id);
+      await copyClubLink('Invite link copied!', buildClubInviteUrl(club.id, code));
+    } catch (error) {
+      console.error('Failed to create invite link:', error);
+      toast.error('Could not create an invite link. Try again.');
+    }
+  }
 
   async function handleLeave(): Promise<void> {
     if (!user) return;
@@ -79,6 +96,12 @@ export function ClubHeader({ club, isMember, lastDiscussionAt, onJoin, isJoining
               ) : (
                 <Chip label={club.scope === 'online' ? 'Online' : 'Hybrid'} color="lilac" />
               )}
+              {isInviteOnly && (
+                <span className="inline-flex items-center gap-1 rounded-pill border border-olive px-3 py-1 text-xs font-medium text-oak">
+                  <IconLock className="size-3.5" aria-hidden="true" />
+                  Invite only
+                </span>
+              )}
               {club.advisorUid && (
                 <span className="inline-flex items-center gap-1 rounded-pill border border-olive px-3 py-1 text-xs font-medium text-oak">
                   <IconShieldCheck className="size-3.5 text-deep-fresh" aria-hidden="true" />
@@ -88,6 +111,17 @@ export function ClubHeader({ club, isMember, lastDiscussionAt, onJoin, isJoining
             </div>
             <h1 className="text-[22px] font-medium text-ink">{club.name}</h1>
             <p className="max-w-xl text-sm text-oak">{club.description}</p>
+            {club.websiteUrl && (
+              <a
+                href={toExternalHref(club.websiteUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex max-w-full items-center gap-1.5 self-start rounded-pill text-sm text-deep-fresh hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+              >
+                <IconWorld className="size-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">{club.websiteUrl.replace(/^https?:\/\//, '')}</span>
+              </a>
+            )}
             <p className="text-sm text-sand">
               {club.memberCount} members · {formatClubActivity(lastDiscussionAt)}
               {club.advisorName && ` · advised by ${club.advisorName}`}
@@ -96,15 +130,17 @@ export function ClubHeader({ club, isMember, lastDiscussionAt, onJoin, isJoining
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void copyClubLink('Link copied!')}
-          >
-            <IconShare className="size-4" aria-hidden="true" />
-            Share
-          </Button>
+          {!isInviteOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void copyClubLink('Link copied!')}
+            >
+              <IconShare className="size-4" aria-hidden="true" />
+              Share
+            </Button>
+          )}
 
           {isMember ? (
             <>
@@ -124,16 +160,26 @@ export function ClubHeader({ club, isMember, lastDiscussionAt, onJoin, isJoining
                   />
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button type="button" onClick={() => void copyClubLink('Invite link copied!')}>
-                Invite friends
-              </Button>
+              {isInviteOnly ? (
+                isAdmin && (
+                  <Button type="button" onClick={() => void handleCopyInviteLink()}>
+                    Copy invite link
+                  </Button>
+                )
+              ) : (
+                <Button type="button" onClick={() => void copyClubLink('Invite link copied!')}>
+                  Invite friends
+                </Button>
+              )}
             </>
           ) : (
             <>
               <ReportButton kind="club" sourceRef={club.id} label="club" />
-              <Button type="button" disabled={isJoining} onClick={onJoin}>
-                {isJoining ? 'Joining…' : '+ Join club'}
-              </Button>
+              {canJoin && (
+                <Button type="button" disabled={isJoining} onClick={onJoin}>
+                  {isJoining ? 'Joining…' : '+ Join club'}
+                </Button>
+              )}
             </>
           )}
         </div>

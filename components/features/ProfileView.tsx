@@ -20,6 +20,7 @@ import {
   getFollowingCount,
   getOpportunitiesByIds,
   getOwnedProjects,
+  getOwnOpportunities,
   getPublicProjectsByOwner,
   getUserInfo,
   getUserInterests,
@@ -51,6 +52,7 @@ export function ProfileView({ uid }: ProfileViewProps) {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [pinnedProjectIds, setPinnedProjectIds] = useState<string[]>([]);
   const [pinnedOpportunities, setPinnedOpportunities] = useState<Opportunity[]>([]);
+  const [ownOpportunities, setOwnOpportunities] = useState<Opportunity[]>([]);
 
   const { isFollowing, isLoading: isFollowLoading, toggleFollow } = useFollowUser(uid);
 
@@ -93,12 +95,21 @@ export function ProfileView({ uid }: ProfileViewProps) {
         }),
       ]);
 
-      const fetchedPinnedOpportunities = await getOpportunitiesByIds(pinnedIds.opportunityIds).catch(
-        (error: unknown) => {
+      const [fetchedPinnedOpportunities, fetchedOwnOpportunities] = await Promise.all([
+        getOpportunitiesByIds(pinnedIds.opportunityIds).catch((error: unknown) => {
           console.error('Failed to load pinned opportunities:', error);
           return [];
-        }
-      );
+        }),
+        // Only the profile owner ever sees this — getOwnOpportunities
+        // returns every moderation status (pending/rejected included), and
+        // the read rule only lets you fetch that mix for your own uid.
+        isOwnProfile
+          ? getOwnOpportunities(uid).catch((error: unknown) => {
+              console.error('Failed to load your submitted opportunities:', error);
+              return [];
+            })
+          : Promise.resolve([]),
+      ]);
 
       if (!cancelled) {
         setInfo(fetchedInfo);
@@ -108,6 +119,7 @@ export function ProfileView({ uid }: ProfileViewProps) {
         setProjects(fetchedProjects);
         setPinnedProjectIds(pinnedIds.projectIds);
         setPinnedOpportunities(fetchedPinnedOpportunities);
+        setOwnOpportunities(fetchedOwnOpportunities);
       }
     }
 
@@ -140,6 +152,14 @@ export function ProfileView({ uid }: ProfileViewProps) {
   }): void {
     setInfo((previous) => (previous ? { ...previous, name: displayName, bio } : previous));
     setInterests(nextInterests);
+  }
+
+  function handleOwnOpportunityDeleted(opportunityId: string): void {
+    setOwnOpportunities((previous) => previous.filter((item) => item.id !== opportunityId));
+  }
+
+  function handleOwnOpportunityUpdated(updated: Opportunity): void {
+    setOwnOpportunities((previous) => previous.map((item) => (item.id === updated.id ? updated : item)));
   }
 
   async function handleToggleProjectPin(projectId: string): Promise<void> {
@@ -304,6 +324,26 @@ export function ProfileView({ uid }: ProfileViewProps) {
         </div>
       )}
 
+      {isOwnProfile && ownOpportunities.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-sm font-medium text-ink">My submissions</h2>
+          <p className="text-sm text-oak">
+            Opportunities you&apos;ve posted, including ones still under review.
+          </p>
+          <div className="flex flex-col gap-4">
+            {ownOpportunities.map((opportunity) => (
+              <OpportunityListingCard
+                key={opportunity.id}
+                opportunity={opportunity}
+                showModerationStatus
+                onDeleted={handleOwnOpportunityDeleted}
+                onUpdated={handleOwnOpportunityUpdated}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-ink">Current projects</h2>
         {projects === null && <p className="text-sm text-sand">Loading projects…</p>}
@@ -317,23 +357,26 @@ export function ProfileView({ uid }: ProfileViewProps) {
             {projects.map((project) => {
               const isPinned = pinnedProjectIds.includes(project.id);
               return (
-                <div key={project.id} className="relative">
+                <div key={project.id} className="flex flex-col gap-2">
+                  {/* In normal flow above the card rather than absolutely
+                      positioned over it — overlaid, the chip collided with
+                      the card's own stage/tag labels at narrow widths. */}
                   {isOwnProfile && (
-                    <button
-                      type="button"
-                      aria-label={isPinned ? 'Unpin this project' : 'Pin this project to your profile'}
-                      aria-pressed={isPinned}
-                      onClick={() => void handleToggleProjectPin(project.id)}
-                      className={cn(
-                        'absolute top-3 right-3 z-10 flex size-7 items-center justify-center rounded-full bg-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
-                        isPinned ? 'text-deep-amber' : 'text-sand hover:text-oak'
-                      )}
-                    >
-                      <IconPinFilled className="size-4" aria-hidden="true" />
-                    </button>
-                  )}
-                  {isOwnProfile && (
-                    <Chip label={VISIBILITY_LABELS[project.visibility]} className="absolute top-3 left-3 z-10" />
+                    <div className="flex items-center justify-between gap-2">
+                      <Chip label={VISIBILITY_LABELS[project.visibility]} />
+                      <button
+                        type="button"
+                        aria-label={isPinned ? 'Unpin this project' : 'Pin this project to your profile'}
+                        aria-pressed={isPinned}
+                        onClick={() => void handleToggleProjectPin(project.id)}
+                        className={cn(
+                          'flex size-7 items-center justify-center rounded-full bg-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+                          isPinned ? 'text-deep-amber' : 'text-sand hover:text-oak'
+                        )}
+                      >
+                        <IconPinFilled className="size-4" aria-hidden="true" />
+                      </button>
+                    </div>
                   )}
                   <ProjectCard project={project} />
                 </div>

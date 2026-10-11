@@ -61,8 +61,14 @@ export function ProjectLookingForCard({ project, isOwner, isMember, onProjectCha
           />
         )}
       </div>
-      <p className="text-sm font-medium text-ink">{project.lookingFor.role}</p>
-      {project.lookingFor.description && <p className="text-sm text-deep-amber/80">{project.lookingFor.description}</p>}
+      <ul className="flex flex-col gap-2">
+        {project.lookingFor.map((item, index) => (
+          <li key={`${item.role}-${index}`} className="flex flex-col">
+            <p className="text-sm font-medium text-ink">{item.role}</p>
+            {item.description && <p className="text-sm text-deep-amber/80">{item.description}</p>}
+          </li>
+        ))}
+      </ul>
 
       {!isMember && (
         <Button

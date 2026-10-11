@@ -77,7 +77,7 @@ export function NotificationsView() {
   }
 
   if (notifications.length === 0) {
-    return <p className="text-sm text-oak">Nothing here yet — you&apos;ll see invites and other updates as they come in.</p>;
+    return <p className="text-sm text-oak">Nothing here yet — you&apos;ll see invites, replies, and new followers as they come in.</p>;
   }
 
   return (
@@ -85,9 +85,9 @@ export function NotificationsView() {
       {notifications.map((notification) => (
         <li key={notification.id}>
           <Card className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <Avatar name={notification.actorName} size="sm" decorative />
-              <div className="flex flex-col">
+              <div className="flex min-w-0 flex-col">
                 {notification.kind === 'mention' && (
                   <p className="text-sm text-ink">
                     <span className="font-medium">{notification.actorName}</span>{' '}
@@ -102,6 +102,19 @@ export function NotificationsView() {
                     <Link href={`/thread/${notification.sourceRef}`} className="font-medium hover:underline">
                       replied to you
                     </Link>
+                  </p>
+                )}
+                {notification.kind === 'follow' && (
+                  <p className="text-sm text-ink">
+                    <Link href={`/profile/${notification.actorUid}`} className="font-medium hover:underline">
+                      {notification.actorName}
+                    </Link>{' '}
+                    started following you
+                  </p>
+                )}
+                {(notification.kind === 'reply' || notification.kind === 'mention') && notification.preview && (
+                  <p className="mt-1 line-clamp-2 border-l-2 border-olive pl-2 text-sm text-oak">
+                    {notification.preview}
                   </p>
                 )}
                 {notification.kind === 'projectInvite' && (

@@ -106,6 +106,19 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     };
   }, [projectId, user, reloadToken]);
 
+  // The quiet-project nudge on Home links here with #composer. The browser's
+  // own hash scroll fires before this page has loaded anything, so redo it
+  // once the composer actually exists, and focus its textarea so the
+  // viewer can start typing straight away.
+  const hasProject = Boolean(project);
+  useEffect(() => {
+    if (!hasProject || window.location.hash !== '#composer') return;
+    const composer = document.getElementById('composer');
+    if (!composer) return;
+    composer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    composer.querySelector('textarea')?.focus({ preventScroll: true });
+  }, [hasProject]);
+
   function handleChanged(): void {
     setReloadToken((token) => token + 1);
   }

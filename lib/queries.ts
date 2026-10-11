@@ -25,7 +25,9 @@ import type {
   DiscussionKind,
   JoinRequest,
   JournalEntry,
+  LookingForRole,
   Opportunity,
+  OpportunityModerationStatus,
   Project,
   ProjectWithStats,
 } from '@/lib/types';
@@ -35,6 +37,16 @@ export function toMillis(value: unknown): number {
     return (value as Timestamp).toMillis();
   }
   return typeof value === 'number' ? value : Date.now();
+}
+
+// Accepts both the current array shape and the single-object shape older
+// projects were saved with. Empty/invalid input reads as "not looking".
+function normalizeLookingFor(value: unknown): LookingForRole[] | undefined {
+  const items = Array.isArray(value) ? value : value ? [value] : [];
+  const roles = items
+    .filter((item): item is { role: string; description?: string } => typeof item?.role === 'string' && item.role.trim() !== '')
+    .map((item) => ({ role: item.role, description: typeof item.description === 'string' ? item.description : '' }));
+  return roles.length > 0 ? roles : undefined;
 }
 
 function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
@@ -49,7 +61,7 @@ function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
     stage: data.stage ?? 'idea',
     liveUrl: data.liveUrl,
     visibility: data.visibility ?? 'public',
-    lookingFor: data.lookingFor,
+    lookingFor: normalizeLookingFor(data.lookingFor),
     links: Array.isArray(data.links) ? data.links : undefined,
     memberUids: Array.isArray(data.memberUids) ? data.memberUids : [],
     memberRoles: data.memberRoles,
@@ -155,13 +167,19 @@ export async function getProjectsByTags(tags: string[], count: number): Promise<
   return snapshot.docs.map(projectFromDoc);
 }
 
-// Same idea for opportunities. No extra filter needed here — opportunities'
-// read rule is just `auth != null`, true for any signed-in request
-// regardless of resource.data, so it's already provable for any query shape.
+// Same idea for opportunities — plus a moderationStatus filter, since this
+// feeds Home's "For you" tab (a public surface). Same array-contains-any +
+// equality shape as getProjectsByTags above, so it's covered the same way
+// without a manual composite index.
 export async function getOpportunitiesByTags(tags: string[], count: number): Promise<Opportunity[]> {
   if (tags.length === 0) return [];
   const snapshot = await getDocs(
-    query(collection(db, 'opportunities'), where('tags', 'array-contains-any', tags.slice(0, 10)), limit(count))
+    query(
+      collection(db, 'opportunities'),
+      where('tags', 'array-contains-any', tags.slice(0, 10)),
+      where('moderationStatus', '==', 'approved'),
+      limit(count)
+    )
   );
   const opportunities = await Promise.all(snapshot.docs.map(opportunityFromDoc));
   return opportunities.filter(isOpportunity);
@@ -185,11 +203,26 @@ export async function getPublicProjects(count: number): Promise<Project[]> {
 // teaser has one), plus a per-project journal-entry count for the "X people
 // · Y entries" line. getCountFromServer is an aggregation query — it counts
 // server-side without downloading the entries themselves.
-export async function getDiscoverProjects(): Promise<ProjectWithStats[]> {
+//
+// Discover is for finding *other* people's work, so the viewer's own
+// projects and anything they collaborate on are left out. Firestore has no
+// "array does not contain" operator, so that part is filtered in memory —
+// before the per-project counts, so excluded projects cost no extra reads.
+// The in-memory visibility check repeats the query's filter on purpose:
+// projectFromDoc defaults a missing visibility to 'public', and this list
+// must never show a private or unlisted project regardless.
+export async function getDiscoverProjects(viewerUid: string): Promise<ProjectWithStats[]> {
   const snapshot = await getDocs(
     query(collection(db, 'projects'), where('visibility', '==', 'public'), orderBy('createdAt', 'desc'))
   );
-  const projects = snapshot.docs.map(projectFromDoc);
+  const projects = snapshot.docs
+    .map(projectFromDoc)
+    .filter(
+      (project) =>
+        project.visibility === 'public' &&
+        project.ownerUid !== viewerUid &&
+        !project.memberUids.includes(viewerUid)
+    );
 
   return Promise.all(
     projects.map(async (project) => {
@@ -229,6 +262,13 @@ async function opportunityFromDoc(docSnap: DocumentSnapshot<DocumentData>): Prom
     featured: Boolean(data.featured),
     status: data.status,
     openDate: data.openDate ? toMillis(data.openDate) : undefined,
+    ageRange: typeof data.ageRange === 'string' ? data.ageRange : undefined,
+    // Any doc written before this field existed reads as already-approved —
+    // see the doc comment on Opportunity.moderationStatus in lib/types.ts.
+    // This only helps direct-by-id reads (getOpportunitiesByIds,
+    // getSavedOpportunities); the where('moderationStatus', '==', 'approved')
+    // list queries below still need those docs backfilled to surface them.
+    moderationStatus: (data.moderationStatus as OpportunityModerationStatus | undefined) ?? 'approved',
     createdAt: toMillis(data.createdAt),
   } satisfies Opportunity;
 }
@@ -237,21 +277,52 @@ function isOpportunity(value: Opportunity | null): value is Opportunity {
   return value !== null;
 }
 
+// Public surface (Home) — approved only. Same single-equality +
+// orderBy('createdAt') shape as getPublicProjects above (a different field
+// for the equality, same pattern), so no manual composite index needed here
+// either.
 export async function getOpenOpportunities(count: number): Promise<Opportunity[]> {
   const snapshot = await getDocs(
-    query(collection(db, 'opportunities'), orderBy('createdAt', 'desc'), limit(count))
+    query(
+      collection(db, 'opportunities'),
+      where('moderationStatus', '==', 'approved'),
+      orderBy('createdAt', 'desc'),
+      limit(count)
+    )
   );
   const opportunities = await Promise.all(snapshot.docs.map(opportunityFromDoc));
   return opportunities.filter(isOpportunity);
 }
 
-// Opportunities directory (app/opportunities): every opportunity, no cap.
-// Deliberately not ordered by deadline here — Firestore's orderBy silently
-// drops documents missing the ordered field, which would hide any
+// Opportunities directory (app/opportunities): every APPROVED opportunity,
+// no cap — pending/rejected posts never reach this public page (see
+// firestore.rules and getOwnOpportunities for where a poster sees those
+// instead). Deliberately not ordered by deadline here — Firestore's orderBy
+// silently drops documents missing the ordered field, which would hide any
 // no-deadline opportunity instead of just sorting it last. The
 // deadline-ascending-nulls-last sort happens in memory in OpportunitiesBoard.
 export async function getAllOpportunities(): Promise<Opportunity[]> {
-  const snapshot = await getDocs(query(collection(db, 'opportunities'), orderBy('createdAt', 'desc')));
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'opportunities'),
+      where('moderationStatus', '==', 'approved'),
+      orderBy('createdAt', 'desc')
+    )
+  );
+  const opportunities = await Promise.all(snapshot.docs.map(opportunityFromDoc));
+  return opportunities.filter(isOpportunity);
+}
+
+// Every opportunity THIS user has ever submitted, any moderation status —
+// "My submissions" on their own profile (ProfileView), so they can see
+// what's still pending/was rejected, not just what went live. Provable
+// against firestore.rules' read rule via the
+// `request.auth.uid == resource.data.posterUid` branch, since the query
+// itself is filtered to posterUid == uid.
+export async function getOwnOpportunities(uid: string): Promise<Opportunity[]> {
+  const snapshot = await getDocs(
+    query(collection(db, 'opportunities'), where('posterUid', '==', uid), orderBy('createdAt', 'desc'))
+  );
   const opportunities = await Promise.all(snapshot.docs.map(opportunityFromDoc));
   return opportunities.filter(isOpportunity);
 }
@@ -307,6 +378,7 @@ async function clubFromDoc(docSnap: QueryDocumentSnapshot<DocumentData> | Docume
     cohortSize: data.cohortSize,
     cost: data.cost,
     pinnedResources: Array.isArray(data.pinnedResources) ? data.pinnedResources : undefined,
+    websiteUrl: typeof data.websiteUrl === 'string' && data.websiteUrl ? data.websiteUrl : undefined,
     whatYoullGet: Array.isArray(data.whatYoullGet) ? data.whatYoullGet : undefined,
     createdAt: toMillis(data.createdAt),
   } satisfies Club;
@@ -334,16 +406,21 @@ export async function getUserClubs(uid: string): Promise<Club[]> {
 // operator, so there's no way to push the exclusion server-side — this
 // fetches every club (the clubs read rule already allows any signed-in user
 // to read the whole collection) and filters out memberships in memory.
+//
+// Invite-only clubs never appear here — the only way in is an admin's
+// invite link (lib/clubInvites.ts).
 export async function getDiscoverableClubs(uid: string): Promise<Club[]> {
   const clubs = await getAllClubs();
-  return clubs.filter((club) => !club.memberUids.includes(uid));
+  return clubs.filter((club) => club.access !== 'invite' && !club.memberUids.includes(uid));
 }
 
 // Two other clubs sharing at least one tag with `club`, falling back to any
 // other clubs if there's no tag overlap — used by the detail page's
 // "Related clubs" sidebar list.
 export async function getRelatedClubs(club: Club, count: number): Promise<Club[]> {
-  const clubs = (await getAllClubs()).filter((candidate) => candidate.id !== club.id);
+  const clubs = (await getAllClubs()).filter(
+    (candidate) => candidate.id !== club.id && candidate.access !== 'invite'
+  );
   const scored = clubs
     .map((candidate) => ({
       candidate,

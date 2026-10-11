@@ -12,6 +12,11 @@ export type ProjectVisibility = 'public' | 'unlisted' | 'private';
 // for that default (so the app and firestore.rules agree on it).
 export type ProjectMemberRole = 'collaborator' | 'coOwner';
 
+export type LookingForRole = { role: string; description: string };
+
+/** Cap on Project.lookingFor — enforced by EditLookingForDialog. */
+export const MAX_LOOKING_FOR_ROLES = 3;
+
 export type Project = {
   id: string;
   ownerUid: string;
@@ -23,7 +28,10 @@ export type Project = {
   /** Only meaningful once stage is 'launched' — the live URL to link to. */
   liveUrl?: string;
   visibility: ProjectVisibility;
-  lookingFor?: { role: string; description: string };
+  /** Up to MAX_LOOKING_FOR_ROLES open roles. Older docs stored a single
+   * { role, description } object here — queries.ts's projectFromDoc wraps
+   * that into a one-item array, so readers only ever see the array form. */
+  lookingFor?: LookingForRole[];
   /** Reference links (repo, demo video, BOM, ...) shown in the detail page's
    * sidebar. Owner-editable, same "empty section renders nothing" pattern as
    * Club.pinnedResources. */
@@ -69,6 +77,13 @@ export type OpportunityType =
 // (a single application-close date, which can coexist with any status).
 export type OpportunityStatus = 'rolling' | 'ongoing' | 'soon' | 'passed';
 
+// Moderation queue state, separate from OpportunityStatus above (that one's
+// the poster's own "rolling/soon/passed" read on the opportunity itself —
+// this one's CoSync's review gate on whether it's public yet at all). Named
+// `moderationStatus` rather than reusing `status` specifically to avoid
+// colliding with OpportunityStatus on the same document.
+export type OpportunityModerationStatus = 'pending' | 'approved' | 'rejected';
+
 export type Opportunity = {
   id: string;
   posterUid: string;
@@ -87,6 +102,16 @@ export type Opportunity = {
   applicationUrl?: string;
   verified: boolean;
   featured?: boolean;
+  /** Defaults to 'pending' at creation (AddOpportunityDialog) and only an
+   * admin can flip it from there — see firestore.rules. Every list query
+   * that feeds a public surface (Home, the Opportunities page) filters for
+   * 'approved' only; queries.ts's opportunityFromDoc treats a doc written
+   * before this field existed as 'approved' so nothing already-live
+   * disappeared the day this shipped, but that in-memory default can't help
+   * a *query's* where() filter — see the moderation-status backfill button
+   * on /seed for bringing pre-existing docs in line so they show up in list
+   * results too, not just direct-by-id reads. */
+  moderationStatus: OpportunityModerationStatus;
   /** undefined on opportunities posted before this field existed — the UI
    * omits a status chip entirely for those rather than guessing one. The
    * Add/Edit forms always set one going forward (defaulting to 'rolling'). */
@@ -95,6 +120,14 @@ export type Opportunity = {
    * The Add/Edit forms require this whenever 'soon' is selected, since
    * "opening soon" with no date isn't a real answer. */
   openDate?: number;
+  /** Free-text display value — either one of the Add/Edit forms' presets
+   * ('13-18', '18+') or whatever the poster typed under "Custom" (e.g. "16+",
+   * "Grades 9-12"). Stored as plain text rather than a closed enum so a
+   * custom entry round-trips through editing without inventing a second
+   * "other" field — see AddOpportunityDialog's AGE_RANGE_PRESETS for how a
+   * stored value gets matched back to a preset pill vs. shown as custom.
+   * undefined = not specified, omitted from the listing entirely. */
+  ageRange?: string;
   createdAt: number;
 };
 
@@ -109,6 +142,8 @@ export type SavedOpportunity = {
 export type ClubIconName = 'cpu' | 'robot' | 'brain' | 'palette' | 'book' | 'music';
 export type ClubColorName = 'sky' | 'amber' | 'sage' | 'lilac' | 'peach';
 export type ClubScope = 'school' | 'online' | 'hybrid';
+// 'invite' clubs are left out of Discover/Related entirely and can only be
+// joined through an admin's invite link — see lib/clubInvites.ts.
 export type ClubAccess = 'anyone' | 'schoolOnly' | 'invite';
 
 export type Club = {
@@ -137,6 +172,9 @@ export type Club = {
   cohortSize?: string;
   cost?: string;
   pinnedResources?: { label: string; url?: string }[];
+  /** The club's own site, if it has one — shown under the club's name on
+   * its page. Set at creation (StartClubDialog) or later by an admin. */
+  websiteUrl?: string;
   whatYoullGet?: string[];
   createdAt: number;
 };
@@ -225,6 +263,10 @@ export type Comment = {
   parentCommentId?: string;
   parentCommentAuthorName?: string;
   parentCommentAuthorUid?: string;
+  /** Set when the author deletes it. The doc stays (content cleared) so
+   * replies to it keep their place in the thread, and it renders as "This
+   * comment was deleted." — see lib/thread.ts's deleteComment. */
+  deleted?: boolean;
   createdAt: number;
 };
 
@@ -242,7 +284,7 @@ export type ProjectInvite = {
   createdAt: number;
 };
 
-export type NotificationKind = 'projectInvite' | 'mention' | 'reply';
+export type NotificationKind = 'projectInvite' | 'mention' | 'reply' | 'follow';
 
 // notifications/{uid}/items/{notificationId} — see CLAUDE.md's data model.
 // Denormalizes enough to render the notification list without a second read
@@ -261,6 +303,10 @@ export type Notification = {
   /** Extra display text specific to the kind — the project's title, for
    * 'projectInvite'. */
   sourceLabel: string;
+  /** Plain-text excerpt of the comment that triggered a 'reply'/'mention'
+   * notification, so the inbox can show what was actually said. Absent on
+   * other kinds and on notifications written before this field existed. */
+  preview?: string;
   seen: boolean;
   createdAt: number;
 };

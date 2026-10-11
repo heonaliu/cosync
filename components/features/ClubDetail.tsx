@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -25,6 +25,9 @@ type ClubDetailProps = {
 export function ClubDetail({ clubId }: ClubDetailProps) {
   const { user } = useAuth();
   const router = useRouter();
+  // Present only when someone opened an admin's invite link — the one way
+  // into an invite-only club (see lib/clubInvites.ts).
+  const inviteCode = useSearchParams().get('invite') ?? undefined;
   const [club, setClub] = useState<Club | null | undefined>(undefined);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [memberPreviewNames, setMemberPreviewNames] = useState<string[]>([]);
@@ -69,7 +72,10 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
 
   async function handleJoin(): Promise<void> {
     try {
-      await join();
+      await join(club?.access === 'invite' ? inviteCode : undefined);
+      // The code's been spent — drop it so a copied URL from here on is
+      // just the club's plain page link.
+      if (inviteCode) router.replace(`/clubs/${clubId}`);
       setReloadToken((token) => token + 1);
     } catch (error) {
       console.error('Failed to join club:', error);
@@ -89,6 +95,18 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
   }
 
   const isMember = Boolean(user && club.memberUids.includes(user.uid));
+  const isAdmin = Boolean(user && club.adminUids.includes(user.uid));
+  const canJoin = club.access !== 'invite' || Boolean(inviteCode);
+
+  // Invite-only clubs stay out of sight for anyone who wasn't sent the link:
+  // no description, no discussion previews, nothing to join.
+  if (club.access === 'invite' && !isMember && !inviteCode) {
+    return (
+      <p className="text-sm text-oak">
+        This club is invite only. If you&apos;d like to join, ask one of its admins for an invite link.
+      </p>
+    );
+  }
 
   // Every event discussion that still has a next occurrence (one-time
   // events that already happened drop out entirely; recurring ones always
@@ -116,6 +134,8 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
       <ClubHeader
         club={club}
         isMember={isMember}
+        isAdmin={isAdmin}
+        canJoin={canJoin}
         lastDiscussionAt={discussions[0]?.createdAt}
         onJoin={() => void handleJoin()}
         isJoining={isJoining}
@@ -150,8 +170,10 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
           <ClubSidebar
             club={club}
             isMember={isMember}
+            isAdmin={isAdmin}
             memberPreviewNames={memberPreviewNames}
             relatedClubs={relatedClubs}
+            onClubChanged={() => setReloadToken((token) => token + 1)}
           />
         </aside>
       </div>

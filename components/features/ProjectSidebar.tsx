@@ -1,6 +1,7 @@
 'use client';
 
 import { IconLink, IconPencil } from '@tabler/icons-react';
+import { deleteField, doc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 
 import { EditLinksDialog } from '@/components/features/EditLinksDialog';
@@ -8,9 +9,11 @@ import { ProjectInterestedList } from '@/components/features/ProjectInterestedLi
 import { ProjectLookingForCard } from '@/components/features/ProjectLookingForCard';
 import { ProjectTeamList } from '@/components/features/ProjectTeamList';
 import { Button } from '@/components/ui/button';
+import { db } from '@/lib/firebase';
 import type { UserInfo } from '@/lib/queries';
 import { formatRelativeTime } from '@/lib/time';
 import type { JoinRequest, Project } from '@/lib/types';
+import { toExternalHref } from '@/lib/utils';
 
 const VISIBILITY_LABELS: Record<Project['visibility'], string> = {
   public: 'public',
@@ -76,8 +79,15 @@ export function ProjectSidebar({
           <h2 className="text-sm font-medium text-ink">Links</h2>
           {isOwner && (
             <EditLinksDialog
-              project={project}
-              onSaved={onProjectChanged}
+              title="Links"
+              description="Repo, demo video, bill of materials — whatever's worth linking to."
+              initialLinks={project.links ?? []}
+              onSave={async (links) => {
+                await updateDoc(doc(db, 'projects', project.id), {
+                  links: links.length > 0 ? links : deleteField(),
+                });
+                onProjectChanged();
+              }}
               trigger={
                 <Button type="button" variant="ghost" size="icon-sm" aria-label="Edit links">
                   <IconPencil className="size-4 text-sand" />
@@ -90,10 +100,15 @@ export function ProjectSidebar({
           <ul className="flex flex-col gap-2">
             {project.links.map((link) => (
               <li key={link.label}>
-                <Link href={link.url} className="inline-flex items-center gap-1.5 text-sm text-deep-fresh hover:underline">
+                <a
+                  href={toExternalHref(link.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-pill text-sm text-deep-fresh hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+                >
                   <IconLink className="size-4" aria-hidden="true" />
                   {link.label}
-                </Link>
+                </a>
               </li>
             ))}
           </ul>

@@ -3,6 +3,7 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -17,6 +18,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { toPlainExcerpt } from '@/lib/mentions';
 import { sendThreadNotification } from '@/lib/notifications';
 import { getUserInfo, toMillis } from '@/lib/queries';
 import type { Comment } from '@/lib/types';
@@ -170,6 +172,7 @@ function commentFromDoc(id: string, data: DocumentData): Comment {
     parentCommentId: data.parentCommentId,
     parentCommentAuthorName: data.parentCommentAuthorName,
     parentCommentAuthorUid: data.parentCommentAuthorUid,
+    deleted: data.deleted === true ? true : undefined,
     createdAt: toMillis(data.createdAt),
   };
 }
@@ -177,6 +180,22 @@ function commentFromDoc(id: string, data: DocumentData): Comment {
 export async function listComments(ref: ThreadRef): Promise<Comment[]> {
   const snapshot = await getDocs(query(commentsCollection(ref), orderBy('createdAt', 'asc')));
   return snapshot.docs.map((docSnap) => commentFromDoc(docSnap.id, docSnap.data()));
+}
+
+// Soft delete: the author's own update (firestore.rules already allows the
+// author full write on their comment). Deleting the doc outright would
+// orphan any replies pointing at it via parentCommentId and break their
+// "Replying to @X" context, so the doc stays and only its text goes —
+// mentionedUids too, since the mention no longer exists anywhere visible.
+// The parent's comment count is left alone: the placeholder still occupies
+// a spot in the thread.
+export async function deleteComment(ref: ThreadRef, commentId: string): Promise<void> {
+  await updateDoc(doc(commentsCollection(ref), commentId), {
+    content: '',
+    deleted: true,
+    mentionedUids: deleteField(),
+    deletedAt: serverTimestamp(),
+  });
 }
 
 export type NewComment = {
@@ -219,6 +238,7 @@ export async function postComment(ref: ThreadRef, comment: NewComment): Promise<
   // same person getting pinged twice — e.g. replying to someone AND
   // @mentioning them in the same comment is one notification, not two.
   const threadId = encodeThreadId(ref);
+  const preview = toPlainExcerpt(comment.content);
   const notifiedUids = new Set<string>([comment.authorUid]);
   const sends: Promise<void>[] = [];
 
@@ -232,6 +252,7 @@ export async function postComment(ref: ThreadRef, comment: NewComment): Promise<
         actorUid: comment.authorUid,
         actorName: comment.authorName,
         threadId,
+        preview,
       })
     );
   }
@@ -240,7 +261,7 @@ export async function postComment(ref: ThreadRef, comment: NewComment): Promise<
     if (notifiedUids.has(uid)) continue;
     notifiedUids.add(uid);
     sends.push(
-      sendThreadNotification({ kind: 'mention', toUid: uid, actorUid: comment.authorUid, actorName: comment.authorName, threadId })
+      sendThreadNotification({ kind: 'mention', toUid: uid, actorUid: comment.authorUid, actorName: comment.authorName, threadId, preview })
     );
   }
 

@@ -2,6 +2,7 @@
 
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { AddressAutocompleteInput } from '@/components/features/AddressAutocompleteInput';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/Textarea';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { notifyTeamOfSubmission } from '@/lib/opportunityMail';
 import { parseDateInputValue } from '@/lib/time';
 import { useAuth } from '@/lib/useAuth';
 import type { OpportunityStatus, OpportunityType } from '@/lib/types';
@@ -35,6 +37,13 @@ const TYPE_OPTIONS: { value: OpportunityType; label: string }[] = [
 
 const STATUS_OPTIONS: OpportunityStatus[] = ['rolling', 'ongoing', 'soon', 'passed'];
 
+// Presets shown as pills; 'custom' reveals a free-text input instead of
+// writing 'custom' itself anywhere — see FormState.ageRangePreset below.
+const AGE_RANGE_PRESETS: { value: '13-18' | '18+'; label: string }[] = [
+  { value: '13-18', label: '13–18' },
+  { value: '18+', label: '18+' },
+];
+
 type FormState = {
   title: string;
   type: OpportunityType;
@@ -46,6 +55,10 @@ type FormState = {
   applicationUrl: string;
   status: OpportunityStatus;
   openDate: string;
+  /** null = no age range set yet. 'custom' means the free-text input below
+   * is the source of truth, not this field's own value. */
+  ageRangePreset: '13-18' | '18+' | 'custom' | null;
+  ageRangeCustom: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -59,6 +72,8 @@ const EMPTY_FORM: FormState = {
   applicationUrl: '',
   status: 'rolling',
   openDate: '',
+  ageRangePreset: null,
+  ageRangeCustom: '',
 };
 
 type AddOpportunityDialogProps = {
@@ -102,6 +117,10 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
         title: form.title.trim(),
         description: form.description.trim(),
         status: form.status,
+        // Every new opportunity starts in the moderation queue — it only
+        // becomes publicly visible once an admin approves it. See
+        // firestore.rules and lib/types.ts's Opportunity.moderationStatus.
+        moderationStatus: 'pending',
         createdAt: serverTimestamp(),
       };
       if (form.deadline) payload.deadline = parseDateInputValue(form.deadline);
@@ -112,12 +131,34 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
       }
       if (form.applicationUrl.trim()) payload.applicationUrl = form.applicationUrl.trim();
       if (form.status === 'soon' && form.openDate) payload.openDate = parseDateInputValue(form.openDate);
+      const ageRange =
+        form.ageRangePreset === 'custom' ? form.ageRangeCustom.trim() : (form.ageRangePreset ?? '');
+      if (ageRange) payload.ageRange = ageRange;
 
-      await addDoc(collection(db, 'opportunities'), payload);
+      const opportunityRef = await addDoc(collection(db, 'opportunities'), payload);
+
+      // Best-effort — a submitter should never see their post fail to save
+      // just because the review-notification email couldn't be queued, so
+      // this is deliberately not awaited into the same try/catch failure
+      // path as the opportunity write above.
+      void notifyTeamOfSubmission({
+        opportunityId: opportunityRef.id,
+        title: payload.title as string,
+        type: payload.type as string,
+        submitterName: user.displayName ?? 'Someone',
+        submitterEmail: user.email,
+      }).catch((mailError: unknown) => {
+        console.error('Failed to queue review notification email:', mailError);
+      });
 
       setForm(EMPTY_FORM);
       setOpen(false);
       onCreated?.();
+      toast.success("We've received the opportunity you provided.", {
+        description:
+          'Our team will review it and, once approved, publish it on CoSync. This usually takes 1–5 business days. We may reach out using the contact details you provided if we have any questions.',
+        duration: 10000,
+      });
     } catch (submitError) {
       setError(
         submitError instanceof Error ? submitError.message : 'Something went wrong. Try again.'
@@ -243,6 +284,39 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
               Deadline <span className="text-sand">(optional — leave blank if rolling)</span>
             </label>
             <DatePicker id="opportunity-deadline" value={form.deadline} onChange={(next) => updateField('deadline', next)} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink">
+              Age range <span className="text-sand">(optional)</span>
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {AGE_RANGE_PRESETS.map((option) => (
+                <PillToggle
+                  key={option.value}
+                  label={option.label}
+                  isActive={form.ageRangePreset === option.value}
+                  activeColor="purple"
+                  onClick={() => updateField('ageRangePreset', option.value)}
+                />
+              ))}
+              <PillToggle
+                label="Custom"
+                isActive={form.ageRangePreset === 'custom'}
+                activeColor="purple"
+                onClick={() => updateField('ageRangePreset', 'custom')}
+              />
+            </div>
+            {form.ageRangePreset === 'custom' && (
+              <Input
+                autoFocus
+                aria-label="Custom age range"
+                placeholder="e.g. Grades 9–12"
+                value={form.ageRangeCustom}
+                onChange={(event) => updateField('ageRangeCustom', event.target.value)}
+                className="mt-1"
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

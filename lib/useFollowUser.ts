@@ -4,6 +4,8 @@ import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firest
 import { useEffect, useRef, useState } from 'react';
 
 import { db } from '@/lib/firebase';
+import { sendFollowNotification } from '@/lib/notifications';
+import { getUserInfo } from '@/lib/queries';
 import { useAuth } from '@/lib/useAuth';
 
 type FollowUserState = {
@@ -62,6 +64,12 @@ export function useFollowUser(profileUid: string): FollowUserState {
     try {
       if (next) {
         await setDoc(ref, { followerUid: viewerUid, followedUid: profileUid, createdAt: serverTimestamp() });
+        // Best-effort, same as thread notifications — the follow itself
+        // already succeeded, and a re-follow is expected to be denied here
+        // (see sendFollowNotification's fixed doc id).
+        void getUserInfo(viewerUid)
+          .then((info) => sendFollowNotification({ toUid: profileUid, actorUid: viewerUid, actorName: info.name }))
+          .catch(() => undefined);
       } else {
         await deleteDoc(ref);
       }

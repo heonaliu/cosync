@@ -68,7 +68,13 @@ export function ProjectCard({
           <span className="whitespace-nowrap text-sm text-oak">
             {collaboratorCount} collaborator{collaboratorCount === 1 ? '' : 's'}
           </span>
-          {project.lookingFor && <LookingForCallout role={project.lookingFor.role} />}
+          {project.lookingFor && (
+            <div className="flex flex-wrap gap-1.5">
+              {project.lookingFor.map((item, index) => (
+                <LookingForCallout key={`${item.role}-${index}`} role={item.role} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </Link>

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { Button } from '@/components/ui/button';
 import type { Project } from '@/lib/types';
 
@@ -24,8 +26,8 @@ export function QuietProjectNudge({ project, quietDays }: QuietProjectNudgeProps
           Even a photo of your workbench counts. What did you tinker with this week?
         </p>
       </div>
-      <Button variant="dark" size="sm" className="self-start">
-        Post an update
+      <Button asChild variant="dark" size="sm" className="self-start">
+        <Link href={`/projects/${project.id}#composer`}>Post an update</Link>
       </Button>
     </div>
   );

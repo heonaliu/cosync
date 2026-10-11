@@ -34,6 +34,23 @@ const TYPE_OPTIONS: { value: OpportunityType; label: string }[] = [
 
 const STATUS_OPTIONS: OpportunityStatus[] = ['rolling', 'ongoing', 'soon', 'passed'];
 
+// Same presets as AddOpportunityDialog's AGE_RANGE_PRESETS — kept as a
+// separate copy here rather than a shared import, matching how TYPE_OPTIONS/
+// STATUS_OPTIONS are already duplicated between these two files.
+const AGE_RANGE_PRESETS: { value: '13-18' | '18+'; label: string }[] = [
+  { value: '13-18', label: '13–18' },
+  { value: '18+', label: '18+' },
+];
+
+// A stored ageRange round-trips onto a preset pill only if it matches one
+// exactly; anything else (including one of these same presets typed by hand
+// before this UI existed) opens as "Custom" with the raw text preserved.
+function ageRangePresetFor(ageRange: string | undefined): '13-18' | '18+' | 'custom' | null {
+  if (!ageRange) return null;
+  if (ageRange === '13-18' || ageRange === '18+') return ageRange;
+  return 'custom';
+}
+
 type EditOpportunityDialogProps = {
   opportunity: Opportunity;
   trigger: React.ReactNode;
@@ -62,6 +79,12 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
       : null
   );
   const [applicationUrl, setApplicationUrl] = useState(opportunity.applicationUrl ?? '');
+  const [ageRangePreset, setAgeRangePreset] = useState<'13-18' | '18+' | 'custom' | null>(
+    ageRangePresetFor(opportunity.ageRange)
+  );
+  const [ageRangeCustom, setAgeRangeCustom] = useState(
+    ageRangePresetFor(opportunity.ageRange) === 'custom' ? (opportunity.ageRange ?? '') : ''
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,6 +95,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
     setIsSaving(true);
     setError(null);
     try {
+      const ageRange = ageRangePreset === 'custom' ? ageRangeCustom.trim() : (ageRangePreset ?? '');
       const payload: Record<string, unknown> = {
         title: title.trim(),
         type,
@@ -83,6 +107,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
         // status !== 'soon' clears openDate outright rather than leaving a
         // stale date behind once it no longer means anything.
         openDate: status === 'soon' && openDate ? parseDateInputValue(openDate) : deleteField(),
+        ageRange: ageRange ? ageRange : deleteField(),
       };
       // Always set both together, never leave one stale: if the location
       // text was free-typed rather than picked from the dropdown (coords is
@@ -111,6 +136,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
         lng: location.trim() ? coords?.lng : undefined,
         applicationUrl: applicationUrl.trim() || undefined,
         openDate: status === 'soon' && openDate ? parseDateInputValue(openDate).getTime() : undefined,
+        ageRange: ageRange || undefined,
       });
       setOpen(false);
     } catch (saveError) {
@@ -211,6 +237,38 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
               Deadline <span className="text-sand">(optional — leave blank if rolling)</span>
             </label>
             <DatePicker id="edit-opportunity-deadline" value={deadline} onChange={setDeadline} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink">
+              Age range <span className="text-sand">(optional)</span>
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {AGE_RANGE_PRESETS.map((option) => (
+                <PillToggle
+                  key={option.value}
+                  label={option.label}
+                  isActive={ageRangePreset === option.value}
+                  activeColor="purple"
+                  onClick={() => setAgeRangePreset(option.value)}
+                />
+              ))}
+              <PillToggle
+                label="Custom"
+                isActive={ageRangePreset === 'custom'}
+                activeColor="purple"
+                onClick={() => setAgeRangePreset('custom')}
+              />
+            </div>
+            {ageRangePreset === 'custom' && (
+              <Input
+                aria-label="Custom age range"
+                placeholder="e.g. Grades 9–12"
+                value={ageRangeCustom}
+                onChange={(event) => setAgeRangeCustom(event.target.value)}
+                className="mt-1"
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

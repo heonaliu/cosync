@@ -1,3 +1,5 @@
+import { Suspense } from 'react';
+
 import { ClubDetail } from '@/components/features/ClubDetail';
 import { RequireAuth } from '@/components/features/RequireAuth';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -12,7 +14,11 @@ export default async function ClubDetailPage({ params }: ClubDetailPageProps) {
   return (
     <PageContainer className="flex flex-col gap-6 py-6">
       <RequireAuth />
-      <ClubDetail clubId={clubId} />
+      {/* ClubDetail reads ?invite= via useSearchParams, which needs a
+          Suspense boundary above it. */}
+      <Suspense fallback={<p className="text-sm text-sand">Loading club…</p>}>
+        <ClubDetail clubId={clubId} />
+      </Suspense>
     </PageContainer>
   );
 }

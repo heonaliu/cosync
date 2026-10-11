@@ -1,6 +1,17 @@
 'use client';
 
-import { addDoc, arrayRemove, collection, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  addDoc,
+  arrayRemove,
+  collection,
+  doc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -535,6 +546,12 @@ export default function SeedPage() {
           tags: item.tags ?? [],
           verified: false,
           featured: Boolean(item.featured),
+          // Written pre-approved so seeded data is immediately visible on
+          // Home/Opportunities without an extra manual approval step — real
+          // submissions still go through AddOpportunityDialog, which starts
+          // them at 'pending' instead. See handleBackfillModerationStatus
+          // above for opportunities seeded before this field existed.
+          moderationStatus: 'approved',
           createdAt: serverTimestamp(),
         };
         if (item.location) payload.location = item.location;
@@ -625,6 +642,44 @@ export default function SeedPage() {
     setIsSeeding(false);
   }
 
+  // One-time migration for opportunities that predate the moderationStatus
+  // field (see CLAUDE.md's opportunity moderation flow / lib/types.ts).
+  // Without this, every pre-existing opportunity you posted would vanish
+  // from the Opportunities page and Home feed the moment those queries
+  // start filtering for moderationStatus == 'approved' — not because it was
+  // rejected, just because it predates the field entirely and an equality
+  // filter never matches a missing field. This only ever touches YOUR OWN
+  // posts (firestore.rules' opportunities update rule doesn't let you touch
+  // anyone else's moderationStatus unless you're an admin), and only sets
+  // 'approved' — the same value queries.ts's opportunityFromDoc already
+  // treats a fieldless doc as having, so this is a no-op for anything that
+  // already reads as approved today; it just makes that default queryable.
+  async function handleBackfillModerationStatus(): Promise<void> {
+    if (!user) return;
+    setIsSeeding(true);
+    setLog([]);
+
+    const snapshot = await getDocs(query(collection(db, 'opportunities'), where('posterUid', '==', user.uid)));
+    const missing = snapshot.docs.filter((docSnap) => docSnap.data().moderationStatus === undefined);
+
+    if (missing.length === 0) {
+      setLog(['Nothing to backfill — every opportunity you posted already has a moderationStatus.']);
+      setIsSeeding(false);
+      return;
+    }
+
+    for (const docSnap of missing) {
+      try {
+        await updateDoc(doc(db, 'opportunities', docSnap.id), { moderationStatus: 'approved' });
+        setLog((prev) => [...prev, `Backfilled ${docSnap.data().title ?? docSnap.id} → approved`]);
+      } catch (error) {
+        setLog((prev) => [...prev, `Failed ${docSnap.id}: ${String(error)}`]);
+      }
+    }
+
+    setIsSeeding(false);
+  }
+
   return (
     <div className="flex flex-col gap-4 p-8">
       <h1 className="text-lg font-medium text-ink">Seed dummy data</h1>
@@ -642,6 +697,14 @@ export default function SeedPage() {
         </Button>
         <Button onClick={() => void handleSeedClubs()} disabled={!user || isSeeding} className="self-start">
           {isSeeding ? 'Seeding…' : 'Run club seed'}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => void handleBackfillModerationStatus()}
+          disabled={!user || isSeeding}
+          className="self-start"
+        >
+          {isSeeding ? 'Working…' : 'Backfill my opportunities → approved'}
         </Button>
       </div>
       <pre className="text-xs text-oak">{log.join('\n')}</pre>

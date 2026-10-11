@@ -52,7 +52,7 @@ const ACCESS_OPTIONS: {
     value: 'invite',
     icon: IconLock,
     title: () => 'By invite only',
-    description: () => 'You approve each request',
+    description: () => 'Hidden from Discover — people join with your invite link',
   },
 ];
 
@@ -64,6 +64,7 @@ type FormState = {
   tags: string[];
   scope: ClubScope;
   access: ClubAccess;
+  websiteUrl: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -74,6 +75,7 @@ const EMPTY_FORM: FormState = {
   tags: [],
   scope: 'online',
   access: 'anyone',
+  websiteUrl: '',
 };
 
 type StartClubDialogProps = {
@@ -145,6 +147,7 @@ export function StartClubDialog({ onCreated }: StartClubDialogProps) {
         createdAt: serverTimestamp(),
       };
       if (form.scope === 'school' && schoolName) payload.schoolName = schoolName;
+      if (form.websiteUrl.trim()) payload.websiteUrl = form.websiteUrl.trim();
 
       const ref = await addDoc(collection(db, 'clubs'), payload);
 
@@ -201,6 +204,20 @@ export function StartClubDialog({ onCreated }: StartClubDialogProps) {
               value={form.about}
               onChange={(event) => updateField('about', event.target.value)}
               required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="club-website" className="text-sm text-ink">
+              Website <span className="text-sand">(optional)</span>
+            </label>
+            <Input
+              id="club-website"
+              type="url"
+              inputMode="url"
+              value={form.websiteUrl}
+              onChange={(event) => updateField('websiteUrl', event.target.value)}
+              placeholder="https://…"
             />
           </div>
 

@@ -1,8 +1,10 @@
 'use client';
 
+import { IconMenu2, IconX } from '@tabler/icons-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import { GoogleSignInButton } from '@/components/features/GoogleSignInButton';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -38,6 +40,17 @@ export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
   const unseenNotificationCount = useUnseenNotificationCount();
+  // Below md the inline link row is hidden, so this toggles a stacked
+  // version of the same links under the bar instead.
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [pathname]);
+
+  function isLinkActive(href: string): boolean {
+    return href === '/home' ? pathname === '/home' : pathname.startsWith(href);
+  }
 
   const logoHref = status === 'authed' ? '/home' : '/';
 
@@ -60,8 +73,7 @@ export function Nav() {
         {status === 'authed' ? (
           <div className="hidden items-center gap-6 md:flex">
             {APP_LINKS.map((link) => {
-              const isActive =
-                link.href === '/home' ? pathname === '/home' : pathname.startsWith(link.href);
+              const isActive = isLinkActive(link.href);
               return (
                 <Link
                   key={link.href}
@@ -92,6 +104,16 @@ export function Nav() {
 
         {status === 'authed' && user ? (
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={isMenuOpen}
+              aria-controls="mobile-nav"
+              onClick={() => setIsMenuOpen((open) => !open)}
+              className="flex size-10 items-center justify-center rounded-full text-ink hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh md:hidden"
+            >
+              {isMenuOpen ? <IconX className="size-5" aria-hidden="true" /> : <IconMenu2 className="size-5" aria-hidden="true" />}
+            </button>
             <Input
               type="search"
               placeholder="Search…"
@@ -137,6 +159,27 @@ export function Nav() {
           <div className="size-10" aria-hidden="true" />
         )}
       </PageContainer>
+
+      {status === 'authed' && isMenuOpen && (
+        <PageContainer id="mobile-nav" className="flex flex-col gap-1 pt-0 pb-4 md:hidden">
+          {APP_LINKS.map((link) => {
+            const isActive = isLinkActive(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'rounded-pill px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
+                  isActive ? 'bg-white font-medium text-ink' : 'text-oak hover:bg-white hover:text-ink'
+                )}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </PageContainer>
+      )}
     </nav>
   );
 }

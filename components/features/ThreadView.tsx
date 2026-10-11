@@ -13,7 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { getThreadData, listComments, toggleThreadCheer, updateThreadPost, type ThreadData } from '@/lib/thread';
+import {
+  deleteComment,
+  getThreadData,
+  listComments,
+  toggleThreadCheer,
+  updateThreadPost,
+  type ThreadData,
+} from '@/lib/thread';
 import { formatRelativeTime } from '@/lib/time';
 import type { Comment } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
@@ -220,7 +227,19 @@ export function ThreadView({ postId }: ThreadViewProps) {
           onClearReplyTarget={() => setReplyTarget(null)}
           onPosted={() => setReloadToken((token) => token + 1)}
         />
-        <CommentList comments={comments} onReply={setReplyTarget} />
+        <CommentList
+          comments={comments}
+          threadId={postId}
+          viewerUid={user?.uid}
+          onReply={setReplyTarget}
+          onDelete={async (commentId) => {
+            await deleteComment(thread.ref, commentId);
+            setComments((previous) =>
+              previous.map((comment) => (comment.id === commentId ? { ...comment, content: '', deleted: true } : comment))
+            );
+            if (replyTarget?.commentId === commentId) setReplyTarget(null);
+          }}
+        />
       </div>
     </div>
   );

@@ -83,6 +83,31 @@ export function ClubsBoard() {
     };
   }, [user, reloadToken]);
 
+  // Moves the club into "Your clubs" right away instead of waiting for a
+  // reload, then fills in its activity summary once that's fetched.
+  function handleJoined(clubId: string): void {
+    if (!user) return;
+    const joined = discoverableClubs?.find((item) => item.id === clubId);
+    setDiscoverableClubs((previous) => previous?.filter((item) => item.id !== clubId) ?? previous);
+    if (!joined) return;
+
+    const club: Club = {
+      ...joined,
+      memberUids: [...joined.memberUids, user.uid],
+      memberCount: joined.memberCount + 1,
+    };
+    setMyClubs((previous) => [...(previous ?? []), { club, recentDiscussionCount: 0 }]);
+
+    getClubDiscussions(club.id, club)
+      .then((discussions) => {
+        const activity = summarizeActivity(discussions);
+        setMyClubs((previous) =>
+          previous?.map((entry) => (entry.club.id === club.id ? { ...entry, ...activity } : entry)) ?? previous
+        );
+      })
+      .catch((error: unknown) => console.error('Failed to load club activity:', error));
+  }
+
   const filteredDiscoverable = (discoverableClubs ?? []).filter((club) => {
     if (filter === 'All' || filter === 'Nearby') return true; // Nearby has no geo data yet — visual only, like Home's feed filters.
     if (filter === 'Your school') return club.scope === 'school';
@@ -141,9 +166,7 @@ export function ClubsBoard() {
               <JoinableClubCard
                 key={club.id}
                 club={club}
-                onJoined={(clubId) =>
-                  setDiscoverableClubs((previous) => previous?.filter((item) => item.id !== clubId) ?? previous)
-                }
+                onJoined={handleJoined}
               />
             ))}
           </div>

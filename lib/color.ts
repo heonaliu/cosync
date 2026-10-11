@@ -1,4 +1,4 @@
-import type { OpportunityStatus, ProjectStage } from '@/lib/types';
+import type { OpportunityModerationStatus, OpportunityStatus, ProjectStage } from '@/lib/types';
 
 export type AccentColor = 'sky' | 'amber' | 'sage' | 'lilac' | 'peach';
 
@@ -120,4 +120,23 @@ export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
 
 export function opportunityStatusColorFor(status: OpportunityStatus): AccentColor {
   return OPPORTUNITY_STATUS_COLORS[status];
+}
+
+// Moderation-queue chip — only ever rendered on "My submissions" (see
+// ProfileView), never on a public listing card, since every card a random
+// viewer can see is 'approved' by definition (see firestore.rules).
+const MODERATION_STATUS_COLORS: Record<OpportunityModerationStatus, AccentColor> = {
+  pending: 'amber',
+  approved: 'sage',
+  rejected: 'peach',
+};
+
+export const MODERATION_STATUS_LABELS: Record<OpportunityModerationStatus, string> = {
+  pending: 'Pending review',
+  approved: 'Approved',
+  rejected: 'Not approved',
+};
+
+export function moderationStatusColorFor(status: OpportunityModerationStatus): AccentColor {
+  return MODERATION_STATUS_COLORS[status];
 }

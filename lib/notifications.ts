@@ -29,6 +29,7 @@ function notificationFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Noti
     actorName: data.actorName ?? 'Someone',
     sourceRef: data.sourceRef ?? '',
     sourceLabel: data.sourceLabel ?? '',
+    preview: typeof data.preview === 'string' && data.preview ? data.preview : undefined,
     seen: Boolean(data.seen),
     createdAt: toMillis(data.createdAt),
   };
@@ -130,6 +131,9 @@ export async function sendThreadNotification(params: {
   actorUid: string;
   actorName: string;
   threadId: string;
+  /** Plain-text excerpt of the comment itself — see lib/mentions.ts's
+   * toPlainExcerpt. */
+  preview: string;
 }): Promise<void> {
   if (params.toUid === params.actorUid) return;
   await addDoc(collection(db, 'notifications', params.toUid, 'items'), {
@@ -138,6 +142,31 @@ export async function sendThreadNotification(params: {
     actorName: params.actorName,
     sourceRef: params.threadId,
     sourceLabel: params.kind === 'mention' ? 'mentioned you in a reply' : 'replied to you',
+    preview: params.preview,
+    seen: false,
+    createdAt: serverTimestamp(),
+  });
+}
+
+// "X started following you." The doc id is fixed per follower
+// (`follow_{actorUid}`) so repeatedly unfollowing and re-following can't
+// spam someone's inbox: the create rule allows writing a new doc into
+// another person's notifications, but a second setDoc onto an id that
+// already exists is an update, which only the recipient may do — so that
+// write is simply denied and the caller swallows it. sourceRef is the
+// follower's uid, which the inbox links to as their profile.
+export async function sendFollowNotification(params: {
+  toUid: string;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  if (params.toUid === params.actorUid) return;
+  await setDoc(doc(db, 'notifications', params.toUid, 'items', `follow_${params.actorUid}`), {
+    kind: 'follow',
+    actorUid: params.actorUid,
+    actorName: params.actorName,
+    sourceRef: params.actorUid,
+    sourceLabel: 'started following you',
     seen: false,
     createdAt: serverTimestamp(),
   });

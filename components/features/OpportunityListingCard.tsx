@@ -9,7 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { accentColorFor, OPPORTUNITY_STATUS_LABELS, opportunityStatusColorFor, type AccentColor } from '@/lib/color';
+import {
+  accentColorFor,
+  moderationStatusColorFor,
+  MODERATION_STATUS_LABELS,
+  OPPORTUNITY_STATUS_LABELS,
+  opportunityStatusColorFor,
+  type AccentColor,
+} from '@/lib/color';
 import { db } from '@/lib/firebase';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
@@ -58,9 +65,20 @@ type OpportunityListingCardProps = {
    * the parent can splice it into its local list in place — same idea as
    * onDeleted, but a replace instead of a removal. */
   onUpdated?: (updated: Opportunity) => void;
+  /** Shows a pending/approved/rejected chip next to the type chip. Only
+   * ProfileView's "My submissions" section passes this — everywhere else,
+   * every card a viewer can see is already 'approved' by definition (see
+   * firestore.rules), so the chip would just be noise. */
+  showModerationStatus?: boolean;
 };
 
-export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved, onUpdated }: OpportunityListingCardProps) {
+export function OpportunityListingCard({
+  opportunity,
+  onDeleted,
+  onUnsaved,
+  onUpdated,
+  showModerationStatus,
+}: OpportunityListingCardProps) {
   const { user } = useAuth();
   const { isSaved, isLoading, toggle } = useSavedOpportunity(opportunity);
   const isOwnPost = user?.uid === opportunity.posterUid;
@@ -68,6 +86,7 @@ export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved, onUp
   const metadataParts = [
     opportunity.deadline ? `Deadline: ${formatDeadline(opportunity.deadline)}` : null,
     opportunity.location,
+    opportunity.ageRange ? `Ages ${opportunity.ageRange}` : null,
   ].filter((part): part is string => Boolean(part));
 
   async function handleSaveClick(): Promise<void> {
@@ -96,6 +115,12 @@ export function OpportunityListingCard({ opportunity, onDeleted, onUnsaved, onUp
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Chip label={TYPE_LABELS[opportunity.type] ?? 'Opportunity'} color={colorForType(opportunity.type)} />
+          {showModerationStatus && (
+            <Chip
+              label={MODERATION_STATUS_LABELS[opportunity.moderationStatus]}
+              color={moderationStatusColorFor(opportunity.moderationStatus)}
+            />
+          )}
           {opportunity.status && (
             <Chip
               label={OPPORTUNITY_STATUS_LABELS[opportunity.status]}

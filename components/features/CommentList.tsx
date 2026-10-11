@@ -1,14 +1,21 @@
+import { IconTrash } from '@tabler/icons-react';
 import Link from 'next/link';
 
+import { ReportButton } from '@/components/features/ReportButton';
 import { RichContent } from '@/components/features/RichContent';
 import { Avatar } from '@/components/ui/Avatar';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatRelativeTime } from '@/lib/time';
 import type { Comment } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type CommentListProps = {
   comments: Comment[];
+  /** Encoded thread id (lib/thread.ts) — used as the report's sourceRef prefix. */
+  threadId: string;
+  viewerUid?: string;
   onReply: (target: { commentId: string; authorUid: string; authorName: string }) => void;
+  onDelete: (commentId: string) => Promise<void>;
 };
 
 // Rotates by depth, same "fixed palette, cycle by index" idea as a git
@@ -51,7 +58,7 @@ function computeDepth(comment: Comment, byId: Map<string, Comment>): number {
 // showing how deep each reply is, in addition to the "Replying to @X" text
 // (the rail shows depth; the text disambiguates *which* sibling at that
 // depth, which color/indent alone can't).
-export function CommentList({ comments, onReply }: CommentListProps) {
+export function CommentList({ comments, threadId, viewerUid, onReply, onDelete }: CommentListProps) {
   if (comments.length === 0) {
     return <p className="text-sm text-oak">No replies yet — be the first to say something.</p>;
   }
@@ -119,15 +126,42 @@ export function CommentList({ comments, onReply }: CommentListProps) {
                 <span className="text-xs text-sand">{formatRelativeTime(comment.createdAt)}</span>
               </div>
 
-              <RichContent content={comment.content} />
+              {comment.deleted ? (
+                <p className="text-sm text-sand italic">This comment was deleted.</p>
+              ) : (
+                <>
+                  <RichContent content={comment.content} />
 
-              <button
-                type="button"
-                onClick={() => onReply({ commentId: comment.id, authorUid: comment.authorUid, authorName: comment.authorName })}
-                className="self-start text-xs text-oak hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
-              >
-                Reply
-              </button>
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => onReply({ commentId: comment.id, authorUid: comment.authorUid, authorName: comment.authorName })}
+                      className="text-xs text-oak hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+                    >
+                      Reply
+                    </button>
+                    {viewerUid === comment.authorUid ? (
+                      <ConfirmDialog
+                        trigger={
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs text-oak hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+                          >
+                            <IconTrash className="size-3.5" aria-hidden="true" />
+                            Delete
+                          </button>
+                        }
+                        title="Delete this comment?"
+                        description="Its text will be removed and replaced with “This comment was deleted.” Replies to it will stay."
+                        confirmLabel="Delete"
+                        onConfirm={() => onDelete(comment.id)}
+                      />
+                    ) : (
+                      <ReportButton kind="comment" sourceRef={`${threadId}/${comment.id}`} label="comment" className="ml-auto" />
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </li>
         );

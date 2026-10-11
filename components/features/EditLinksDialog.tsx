@@ -1,8 +1,8 @@
 'use client';
 
 import { IconTrash } from '@tabler/icons-react';
-import { deleteField, doc, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -15,24 +15,36 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/Input';
-import { db } from '@/lib/firebase';
-import type { Project } from '@/lib/types';
+
+export type LinkRow = { label: string; url: string };
 
 type EditLinksDialogProps = {
-  project: Project;
+  title: string;
+  description: string;
+  initialLinks: { label: string; url?: string }[];
+  /** Receives only the rows worth keeping (see below), trimmed. */
+  onSave: (links: { label: string; url?: string }[]) => Promise<void>;
   trigger: React.ReactNode;
-  onSaved: () => void;
+  /** Club pinned resources can be a plain label ("Bring a laptop") with no
+   * link; project links can't. */
+  urlOptional?: boolean;
 };
 
-type LinkRow = { label: string; url: string };
-
-// Owner-only. Rows with an empty label or url are dropped on save, so
-// someone can leave a half-filled row while typing without it becoming a
+// Used for a project's Links (owner) and a club's Pinned resources (admins).
+// Rows missing a label — or a URL, unless urlOptional — are dropped on save,
+// so someone can leave a half-filled row while typing without it becoming a
 // broken link on the page.
-export function EditLinksDialog({ project, trigger, onSaved }: EditLinksDialogProps) {
+export function EditLinksDialog({ title, description, initialLinks, onSave, trigger, urlOptional = false }: EditLinksDialogProps) {
   const [open, setOpen] = useState(false);
-  const [links, setLinks] = useState<LinkRow[]>(project.links ?? []);
+  const [links, setLinks] = useState<LinkRow[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  function handleOpenChange(nextOpen: boolean): void {
+    // Re-seed from the saved value each time the dialog opens, so a
+    // cancelled edit doesn't linger and a save made elsewhere shows up.
+    if (nextOpen) setLinks(initialLinks.map((link) => ({ label: link.label, url: link.url ?? '' })));
+    setOpen(nextOpen);
+  }
 
   function updateRow(index: number, field: keyof LinkRow, value: string): void {
     setLinks((previous) => previous.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
@@ -45,24 +57,27 @@ export function EditLinksDialog({ project, trigger, onSaved }: EditLinksDialogPr
   async function handleSave(): Promise<void> {
     setIsSaving(true);
     try {
-      const cleaned = links.filter((row) => row.label.trim() && row.url.trim());
-      await updateDoc(doc(db, 'projects', project.id), {
-        links: cleaned.length > 0 ? cleaned : deleteField(),
-      });
+      const cleaned = links
+        .map((row) => ({ label: row.label.trim(), url: row.url.trim() }))
+        .filter((row) => row.label && (urlOptional || row.url))
+        .map((row) => (row.url ? row : { label: row.label }));
+      await onSave(cleaned);
       setOpen(false);
-      onSaved();
+    } catch (error) {
+      console.error('Failed to save links:', error);
+      toast.error('Could not save those links. Try again.');
     } finally {
       setIsSaving(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Links</DialogTitle>
-          <DialogDescription>Repo, demo video, bill of materials — whatever&apos;s worth linking to.</DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
@@ -78,7 +93,7 @@ export function EditLinksDialog({ project, trigger, onSaved }: EditLinksDialogPr
               <Input
                 value={row.url}
                 onChange={(event) => updateRow(index, 'url', event.target.value)}
-                placeholder="https://…"
+                placeholder={urlOptional ? 'https://… (optional)' : 'https://…'}
                 aria-label="Link URL"
               />
               <Button

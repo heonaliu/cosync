@@ -16,6 +16,7 @@ import {
   getLatestJournalEntry,
   getOpenOpportunities,
   getOpportunitiesByTags,
+  getOwnedProjects,
   getProjectsByTags,
   getPublicProjects,
   getRecentJournalEntries,
@@ -51,6 +52,12 @@ type FeedData = {
   interests: string[];
   matchedProjects: Project[];
   matchedOpportunities: Opportunity[];
+  /** The viewer's own projects — used only for the quiet-project nudge
+   * below, never rendered as a list. Deliberately a separate fetch from
+   * `projects` (the sitewide public teaser), which has no reason to be
+   * scoped to the viewer and previously — incorrectly — was what the nudge
+   * read from, meaning it could point at a stranger's project. */
+  ownedProjects: Project[];
 };
 
 // The three shapes a "For you" card can be, each carrying its own recency
@@ -84,7 +91,7 @@ export function HomeFeed() {
     let cancelled = false;
 
     async function load(): Promise<void> {
-      const [entries, projects, opportunities, followedProjects, ownInfo] = await Promise.all([
+      const [entries, projects, opportunities, followedProjects, ownedProjects, ownInfo] = await Promise.all([
         getRecentJournalEntries(3).catch((error: unknown) => {
           console.error('Failed to load journal entries:', error);
           return [];
@@ -99,6 +106,10 @@ export function HomeFeed() {
         }),
         getFollowedProjects(uid).catch((error: unknown) => {
           console.error('Failed to load followed projects:', error);
+          return [];
+        }),
+        getOwnedProjects(uid).catch((error: unknown) => {
+          console.error('Failed to load your projects:', error);
           return [];
         }),
         getUserInfo(uid).catch((error: unknown) => {
@@ -148,7 +159,16 @@ export function HomeFeed() {
       ]);
 
       if (!cancelled) {
-        setData({ entries, projects, opportunities, followingItems, interests, matchedProjects, matchedOpportunities });
+        setData({
+          entries,
+          projects,
+          opportunities,
+          followingItems,
+          interests,
+          matchedProjects,
+          matchedOpportunities,
+          ownedProjects,
+        });
         setUserLocation(ownInfo.location);
         setUserLocationLat(ownInfo.locationLat);
         setUserLocationLng(ownInfo.locationLng);
@@ -189,7 +209,13 @@ export function HomeFeed() {
     });
   }
 
-  const quietProject = data?.projects.find(
+  // Only ever a project the viewer themselves owns — data.projects is a
+  // sitewide public teaser (getPublicProjects), unscoped to the viewer, and
+  // reading the nudge off it used to mean it could tell you a stranger's
+  // project had gone quiet. updatedAt now moves on every journal post (see
+  // ProjectJournalComposer), not just on project edits, so this reflects
+  // real last-activity for a project with any journaling history at all.
+  const quietProject = data?.ownedProjects.find(
     (project) => Date.now() - project.updatedAt > QUIET_THRESHOLD_MS
   );
   const quietDays = quietProject

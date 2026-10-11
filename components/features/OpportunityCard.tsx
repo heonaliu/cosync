@@ -72,6 +72,9 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
         {opportunity.status === 'soon' && opportunity.openDate && (
           <span className="whitespace-nowrap text-xs text-sand">Opens {formatDeadline(opportunity.openDate)}</span>
         )}
+        {opportunity.ageRange && (
+          <span className="whitespace-nowrap text-xs text-sand">Ages {opportunity.ageRange}</span>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">

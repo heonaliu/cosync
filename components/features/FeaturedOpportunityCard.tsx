@@ -51,6 +51,7 @@ export function FeaturedOpportunityCard({ opportunity, onDeleted, onUpdated }: F
           {opportunity.status === 'soon' && opportunity.openDate && (
             <span className="text-sm text-white/80">Opens {formatDeadline(opportunity.openDate)}</span>
           )}
+          {opportunity.ageRange && <span className="text-sm text-white/80">Ages {opportunity.ageRange}</span>}
         </div>
 
         {isOwnPost && (

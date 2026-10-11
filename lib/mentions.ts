@@ -21,3 +21,17 @@ export function extractMentionedUids(content: string): string[] {
   }
   return Array.from(uids);
 }
+
+const IMAGE_TOKEN = /!\[[^\]]*\]\([^)]+\)/g;
+
+// A short plain-text version of stored content, for places that can't
+// render RichContent (notification excerpts): mention tokens collapse to
+// "@Name", image tokens to "[photo]", whitespace runs to single spaces.
+export function toPlainExcerpt(content: string, maxLength = 140): string {
+  const plain = content
+    .replace(MENTION_TOKEN, (_, name: string) => `@${name}`)
+    .replace(IMAGE_TOKEN, '[photo]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plain.length > maxLength ? `${plain.slice(0, maxLength - 1).trimEnd()}…` : plain;
+}
