@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { STAGE_LABELS, stageColorFor } from '@/lib/color';
 import { db } from '@/lib/firebase';
 import { isProjectManager } from '@/lib/projectRoles';
@@ -172,7 +173,7 @@ export function ProjectHeader({
         </div>
       </div>
 
-      <p className="max-w-2xl text-sm text-oak">{project.description}</p>
+      <ExpandableText text={project.description} className="max-w-2xl" />
 
       {project.stage === 'launched' && project.liveUrl && (
         <Link

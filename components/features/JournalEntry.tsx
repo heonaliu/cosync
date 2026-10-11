@@ -1,8 +1,10 @@
 import { IconHandStop, IconMessageCircle } from '@tabler/icons-react';
 import Link from 'next/link';
 
+import { RichContent } from '@/components/features/RichContent';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
+import { encodeThreadId } from '@/lib/thread';
 import { formatRelativeTime } from '@/lib/time';
 import type { JournalEntry as JournalEntryData } from '@/lib/types';
 
@@ -31,7 +33,11 @@ export function JournalEntry({ entry }: JournalEntryProps) {
         </div>
       </div>
 
-      <p className="text-sm text-ink">{entry.content}</p>
+      <RichContent
+        content={entry.content}
+        maxLength={150}
+        moreHref={`/thread/${encodeThreadId({ kind: 'journal', projectId: entry.projectId, entryId: entry.id })}`}
+      />
 
       <div className="flex items-center gap-4 text-sm text-oak">
         <button

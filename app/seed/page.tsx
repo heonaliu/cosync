@@ -680,6 +680,51 @@ export default function SeedPage() {
     setIsSeeding(false);
   }
 
+  // Read-only. Lists every project with one of FAKE_UID's accounts as its
+  // owner or a member — the ones that render a "Someone" collaborator, since
+  // those uids have no users/{uid} doc. Deleting happens outside the app
+  // (firebase firestore:delete --recursive): the seed hands RoverBot and
+  // Zine Machine to fake owners, so firestore.rules won't let any real
+  // account delete them, and --recursive also clears their journal entries
+  // and comments, which a plain doc delete would leave orphaned.
+  async function handleFindSeededProjects(): Promise<void> {
+    if (!user) return;
+    setIsSeeding(true);
+    setLog([]);
+
+    const projectsRef = collection(db, 'projects');
+    const snapshots = await Promise.all([
+      getDocs(query(projectsRef, where('visibility', '==', 'public'))),
+      getDocs(query(projectsRef, where('ownerUid', '==', user.uid))),
+      getDocs(query(projectsRef, where('memberUids', 'array-contains', user.uid))),
+    ]);
+
+    const isSeedUid = (uid: unknown): boolean => typeof uid === 'string' && uid.startsWith('seed-');
+    const found = new Map<string, string>();
+    for (const snapshot of snapshots) {
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        const memberUids: unknown[] = Array.isArray(data.memberUids) ? data.memberUids : [];
+        if (isSeedUid(data.ownerUid) || memberUids.some(isSeedUid)) {
+          found.set(docSnap.id, data.title ?? '(untitled)');
+        }
+      }
+    }
+
+    if (found.size === 0) {
+      setLog(['No projects with seeded "Someone" accounts found.']);
+    } else {
+      setLog([
+        `${found.size} seeded project(s):`,
+        ...Array.from(found, ([id, title]) => `  projects/${id}  ${title}`),
+        '',
+        'Delete them (and their journal entries/comments) with:',
+        ...Array.from(found.keys(), (id) => `firebase firestore:delete projects/${id} --recursive --project cosync-app --force`),
+      ]);
+    }
+    setIsSeeding(false);
+  }
+
   return (
     <div className="flex flex-col gap-4 p-8">
       <h1 className="text-lg font-medium text-ink">Seed dummy data</h1>
@@ -705,6 +750,14 @@ export default function SeedPage() {
           className="self-start"
         >
           {isSeeding ? 'Working…' : 'Backfill my opportunities → approved'}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => void handleFindSeededProjects()}
+          disabled={!user || isSeeding}
+          className="self-start"
+        >
+          {isSeeding ? 'Working…' : 'Find seeded dummy projects'}
         </Button>
       </div>
       <pre className="text-xs text-oak">{log.join('\n')}</pre>

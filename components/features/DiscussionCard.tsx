@@ -12,7 +12,7 @@ import { encodeThreadId } from '@/lib/thread';
 import { formatEventDetailLine, formatRelativeTime } from '@/lib/time';
 import type { Discussion } from '@/lib/types';
 import { useCheerDiscussion } from '@/lib/useCheerDiscussion';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
 
 type DiscussionCardProps = {
   discussion: Discussion;
@@ -60,9 +60,9 @@ export function DiscussionCard({ discussion, muted = false, isMember = false }: 
       <div className="flex flex-col gap-1">
         {discussion.title && <h3 className="text-sm font-medium text-ink">{discussion.title}</h3>}
         {discussion.kind === 'event' ? (
-          bodyText && <p className="text-sm text-oak">{bodyText}</p>
+          bodyText && <p className="text-sm text-oak">{truncateText(bodyText)}</p>
         ) : (
-          <RichContent content={bodyText} />
+          <RichContent content={bodyText} maxLength={150} moreHref={threadHref} />
         )}
       </div>
 

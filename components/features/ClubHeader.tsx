@@ -1,6 +1,6 @@
 'use client';
 
-import { IconDotsVertical, IconLock, IconShare, IconShieldCheck, IconWorld } from '@tabler/icons-react';
+import { IconDotsVertical, IconLock, IconShare, IconWorld } from '@tabler/icons-react';
 import { arrayRemove, doc, increment, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { buildClubInviteUrl, getOrCreateClubInviteCode } from '@/lib/clubInvites';
 import { db } from '@/lib/firebase';
 import { formatClubActivity } from '@/lib/time';
@@ -102,15 +103,9 @@ export function ClubHeader({ club, isMember, isAdmin, canJoin, lastDiscussionAt,
                   Invite only
                 </span>
               )}
-              {club.advisorUid && (
-                <span className="inline-flex items-center gap-1 rounded-pill border border-olive px-3 py-1 text-xs font-medium text-oak">
-                  <IconShieldCheck className="size-3.5 text-deep-fresh" aria-hidden="true" />
-                  Educator-led
-                </span>
-              )}
             </div>
             <h1 className="text-[22px] font-medium text-ink">{club.name}</h1>
-            <p className="max-w-xl text-sm text-oak">{club.description}</p>
+            <ExpandableText text={club.description} className="max-w-xl" />
             {club.websiteUrl && (
               <a
                 href={toExternalHref(club.websiteUrl)}

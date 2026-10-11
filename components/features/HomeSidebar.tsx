@@ -6,22 +6,46 @@ import { toast } from 'sonner';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/button';
-import { getFollowSuggestions, type FollowSuggestion } from '@/lib/queries';
+import {
+  getFollowSuggestions,
+  getUpcomingClubEvents,
+  type FollowSuggestion,
+  type UpcomingClubEvent,
+} from '@/lib/queries';
+import { encodeThreadId } from '@/lib/thread';
 import { useAuth } from '@/lib/useAuth';
 import { useFollowUser } from '@/lib/useFollowUser';
 
-// Static placeholder content — there's no events collection in the data
-// model yet, so this part of the sidebar is illustrative rather than a real
-// Firestore read, unlike "You might follow" below it.
-const EVENTS = [
-  { name: 'MIT Hackathon', when: 'Sat', going: 42 },
-  { name: 'AI club kickoff', when: 'Thu', going: 8 },
-];
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const EVENT_COUNT = 4;
 
-const SUGGESTION_COUNT = 2;
+// "Today 4:00 PM" / "Thu 4:00 PM" inside the coming week, "Oct 24" beyond it.
+function formatEventWhen(ms: number): string {
+  const date = new Date(ms);
+  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (date.toDateString() === new Date().toDateString()) return `Today ${time}`;
+  if (ms - Date.now() < WEEK_MS) return `${date.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+const SUGGESTION_COUNT = 5;
+
+// The strongest reason this person is being suggested, or null for someone
+// with no connection yet (they show their top interest instead).
+function suggestionReason(person: FollowSuggestion): string | null {
+  if (person.mutualCount > 0) {
+    const [first, second] = person.mutualNames;
+    const others = person.mutualCount - person.mutualNames.length;
+    if (others > 0) return `Followed by ${first} and ${others} other${others === 1 ? '' : 's'} you follow`;
+    return second ? `Followed by ${first} and ${second}` : `Followed by ${first}`;
+  }
+  if (person.followsYou) return 'Follows you';
+  return null;
+}
 
 function FollowSuggestionRow({ person }: { person: FollowSuggestion }) {
   const { isFollowing, isLoading, toggleFollow } = useFollowUser(person.uid);
+  const detail = suggestionReason(person) ?? person.topInterest;
 
   async function handleClick(): Promise<void> {
     try {
@@ -41,12 +65,12 @@ function FollowSuggestionRow({ person }: { person: FollowSuggestion }) {
         <Link href={`/profile/${person.uid}`} className="truncate text-sm text-ink hover:underline">
           {person.name}
         </Link>
-        {person.topInterest && <span className="truncate text-xs text-sand">{person.topInterest}</span>}
+        {detail && <span className="truncate text-xs text-sand">{detail}</span>}
       </div>
       <Button
         type="button"
         size="xs"
-        variant={isFollowing ? 'outline' : 'default'}
+        variant="outline"
         disabled={isLoading}
         onClick={() => void handleClick()}
       >
@@ -59,6 +83,30 @@ function FollowSuggestionRow({ person }: { person: FollowSuggestion }) {
 export function HomeSidebar() {
   const { user } = useAuth();
   const [suggestions, setSuggestions] = useState<FollowSuggestion[] | null>(null);
+  const [events, setEvents] = useState<UpcomingClubEvent[] | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    getUpcomingClubEvents(user.uid)
+      .then((result) => {
+        if (!cancelled) setEvents(result);
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to load upcoming events:', error);
+        if (!cancelled) setEvents([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Events inside the next 7 days if there are any; otherwise whatever's
+  // next, under a heading that doesn't claim it's this week.
+  const thisWeek = (events ?? []).filter((item) => item.nextOccurrence - Date.now() < WEEK_MS);
+  const shownEvents = (thisWeek.length > 0 ? thisWeek : (events ?? [])).slice(0, EVENT_COUNT);
 
   useEffect(() => {
     if (!user) return;
@@ -81,17 +129,33 @@ export function HomeSidebar() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-ink">This week</h2>
-        <ul className="flex flex-col gap-3">
-          {EVENTS.map((event) => (
-            <li key={event.name} className="flex flex-col">
-              <span className="text-sm text-ink">{event.name}</span>
-              <span className="text-xs text-sand">
-                {event.when} · {event.going} going
-              </span>
-            </li>
-          ))}
-        </ul>
+        <h2 className="text-sm font-medium text-ink">
+          {events && events.length > 0 && thisWeek.length === 0 ? 'Coming up' : 'This week'}
+        </h2>
+        {events === null ? (
+          <p className="text-sm text-sand">Loading…</p>
+        ) : shownEvents.length === 0 ? (
+          <p className="text-sm text-oak">
+            Nothing on the calendar yet. Events your clubs post will show up here.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {shownEvents.map(({ event, clubId, clubName, nextOccurrence }) => (
+              <li key={event.id}>
+                <Link
+                  href={`/thread/${encodeThreadId({ kind: 'discussion', clubId, discussionId: event.id })}`}
+                  className="flex flex-col rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh"
+                >
+                  <span className="text-sm text-ink hover:underline">{event.title || 'Club event'}</span>
+                  <span className="text-xs text-sand">
+                    {formatEventWhen(nextOccurrence)} · {clubName}
+                    {event.goingCount ? ` · ${event.goingCount} going` : ''}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">

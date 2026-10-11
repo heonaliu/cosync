@@ -23,17 +23,10 @@ import { Textarea } from '@/components/ui/Textarea';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
 import { notifyTeamOfSubmission } from '@/lib/opportunityMail';
+import { CUSTOM_TYPE_MAX_LENGTH, OPPORTUNITY_TYPE_OPTIONS } from '@/lib/opportunityTypes';
 import { parseDateInputValue } from '@/lib/time';
 import { useAuth } from '@/lib/useAuth';
 import type { OpportunityStatus, OpportunityType } from '@/lib/types';
-
-const TYPE_OPTIONS: { value: OpportunityType; label: string }[] = [
-  { value: 'research', label: 'Research' },
-  { value: 'hackathon', label: 'Hackathon' },
-  { value: 'competition', label: 'Competition' },
-  { value: 'mentorship', label: 'Mentorship' },
-  { value: 'program', label: 'Program' },
-];
 
 const STATUS_OPTIONS: OpportunityStatus[] = ['rolling', 'ongoing', 'soon', 'passed'];
 
@@ -47,6 +40,8 @@ const AGE_RANGE_PRESETS: { value: '13-18' | '18+'; label: string }[] = [
 type FormState = {
   title: string;
   type: OpportunityType;
+  /** Only used when type is 'other'. */
+  customType: string;
   description: string;
   deadline: string;
   location: string;
@@ -64,6 +59,7 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   title: '',
   type: 'research',
+  customType: '',
   description: '',
   deadline: '',
   location: '',
@@ -104,6 +100,11 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
       return;
     }
 
+    if (form.type === 'other' && !form.customType.trim()) {
+      setError('Write in what type of opportunity this is.');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -114,6 +115,7 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
         posterUid: user.uid,
         posterName: user.displayName ?? 'Someone',
         type: form.type,
+        ...(form.type === 'other' ? { customType: form.customType.trim() } : {}),
         title: form.title.trim(),
         description: form.description.trim(),
         status: form.status,
@@ -141,14 +143,8 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
       // just because the review-notification email couldn't be queued, so
       // this is deliberately not awaited into the same try/catch failure
       // path as the opportunity write above.
-      void notifyTeamOfSubmission({
-        opportunityId: opportunityRef.id,
-        title: payload.title as string,
-        type: payload.type as string,
-        submitterName: user.displayName ?? 'Someone',
-        submitterEmail: user.email,
-      }).catch((mailError: unknown) => {
-        console.error('Failed to queue review notification email:', mailError);
+      void notifyTeamOfSubmission(opportunityRef.id).catch((mailError: unknown) => {
+        console.error('Failed to send review notification email:', mailError);
       });
 
       setForm(EMPTY_FORM);
@@ -234,13 +230,24 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TYPE_OPTIONS.map((option) => (
+                {OPPORTUNITY_TYPE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {form.type === 'other' && (
+              <Input
+                autoFocus
+                value={form.customType}
+                onChange={(event) => updateField('customType', event.target.value)}
+                maxLength={CUSTOM_TYPE_MAX_LENGTH}
+                placeholder="e.g. Summer camp, Scholarship, Internship"
+                aria-label="Your opportunity type"
+                required
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

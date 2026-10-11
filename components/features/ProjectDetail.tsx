@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { JournalEntryCard } from '@/components/features/JournalEntryCard';
+import { ProjectCreatedEntry } from '@/components/features/ProjectCreatedEntry';
 import { ProjectHeader } from '@/components/features/ProjectHeader';
 import { ProjectJournalComposer } from '@/components/features/ProjectJournalComposer';
 import { ProjectSidebar, type RelatedProjectEntry } from '@/components/features/ProjectSidebar';
@@ -155,7 +156,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
           <div className="flex flex-col gap-4">
             <h2 className="text-sm font-medium text-ink">Build journal</h2>
-            {entries.length === 0 && <p className="text-sm text-oak">No updates yet.</p>}
             <div className="flex flex-col gap-4">
               {visibleEntries.map((entry) => (
                 <JournalEntryCard
@@ -165,6 +165,9 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                   onDeleted={handleChanged}
                 />
               ))}
+              {/* Oldest end of the journal, so it only shows once every
+                  real entry above it is visible too. */}
+              {hiddenEntryCount === 0 && <ProjectCreatedEntry project={project} ownerName={ownerName} />}
             </div>
             {!isMember && hiddenEntryCount > 0 && (
               <button

@@ -1,10 +1,11 @@
 'use client';
 
-import { IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconBookmark, IconBookmarkFilled, IconPencil, IconTrash } from '@tabler/icons-react';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 import { EditOpportunityDialog } from '@/components/features/EditOpportunityDialog';
+import { OpportunityDetailsDialog } from '@/components/features/OpportunityDetailsDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
@@ -18,19 +19,12 @@ import {
   type AccentColor,
 } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { opportunityTypeLabel } from '@/lib/opportunityTypes';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 import { useSavedOpportunity } from '@/lib/useSavedOpportunity';
-import { cn } from '@/lib/utils';
-
-const TYPE_LABELS: Record<OpportunityType, string> = {
-  research: 'Research',
-  hackathon: 'Hackathon',
-  competition: 'Competition',
-  mentorship: 'Mentorship',
-  program: 'Program',
-};
+import { cn, truncateText } from '@/lib/utils';
 
 // Colors called out explicitly for these three; program has none specified
 // so colorForType() below falls back to the shared tag-color hash for it.
@@ -41,16 +35,10 @@ const TYPE_COLORS: Partial<Record<OpportunityType, AccentColor>> = {
   research: 'lilac',
 };
 
-const CTA_LABELS: Record<OpportunityType, string> = {
-  hackathon: 'Register',
-  competition: 'Learn more',
-  mentorship: 'Apply',
-  research: 'Apply',
-  program: 'Learn more',
-};
-
-function colorForType(type: OpportunityType): AccentColor {
-  return TYPE_COLORS[type] ?? accentColorFor(type);
+// A written-in type gets a color hashed from its own label, so "Summer
+// camp" posts all share one color instead of every 'other' looking alike.
+function colorForType(opportunity: Pick<Opportunity, 'type' | 'customType'>): AccentColor {
+  return TYPE_COLORS[opportunity.type] ?? accentColorFor(opportunity.customType ?? opportunity.type);
 }
 
 type OpportunityListingCardProps = {
@@ -114,7 +102,7 @@ export function OpportunityListingCard({
     >
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Chip label={TYPE_LABELS[opportunity.type] ?? 'Opportunity'} color={colorForType(opportunity.type)} />
+          <Chip label={opportunityTypeLabel(opportunity)} color={colorForType(opportunity)} />
           {showModerationStatus && (
             <Chip
               label={MODERATION_STATUS_LABELS[opportunity.moderationStatus]}
@@ -136,7 +124,7 @@ export function OpportunityListingCard({
 
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium text-ink">{opportunity.title}</h3>
-          <p className="text-sm text-oak">{opportunity.description}</p>
+          <p className="text-sm text-oak">{truncateText(opportunity.description)}</p>
         </div>
 
         {/* Deliberately no verification badge. `opportunity.posterVerified`
@@ -150,15 +138,17 @@ export function OpportunityListingCard({
       <div className="flex shrink-0 items-start gap-2">
         <Button
           type="button"
-          variant={isSaved ? 'dark' : 'outline'}
-          size="sm"
+          variant="outline"
+          size="icon-sm"
+          aria-label={isSaved ? 'Remove from saved' : 'Save opportunity'}
+          aria-pressed={isSaved}
           disabled={isLoading}
           onClick={() => void handleSaveClick()}
-          className="active:scale-95"
+          className={cn('active:scale-95', isSaved && 'text-deep-fresh')}
         >
-          {isSaved ? 'Saved' : 'Save'}
+          {isSaved ? <IconBookmarkFilled className="size-4" /> : <IconBookmark className="size-4" />}
         </Button>
-        <Button size="sm">{CTA_LABELS[opportunity.type]}</Button>
+        <OpportunityDetailsDialog opportunity={opportunity} trigger={<Button size="sm">Learn more</Button>} />
 
         {isOwnPost && (
           <>

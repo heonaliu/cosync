@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/Card';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import type { Club } from '@/lib/types';
 
 type ClubAboutCardProps = {
@@ -12,7 +13,7 @@ export function ClubAboutCard({ club }: ClubAboutCardProps) {
     <Card className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-medium text-ink">About this club</h2>
-        <p className="text-sm text-oak">{club.description}</p>
+        <ExpandableText text={club.description} />
       </div>
 
       {hasDetailRow && (

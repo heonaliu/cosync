@@ -36,10 +36,13 @@ export function AddressAutocompleteInput({
   types = ['geocode'],
 }: AddressAutocompleteInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const isScriptLoaded = useGoogleMapsScript();
+  const mapsStatus = useGoogleMapsScript();
+  // Whatever's been typed so far — carried into the fresh fallback input
+  // below so switching to it doesn't wipe the field.
+  const latestValueRef = useRef(defaultValue ?? '');
 
   useEffect(() => {
-    if (!isScriptLoaded || !inputRef.current || !window.google) return;
+    if (mapsStatus !== 'ready' || !inputRef.current || !window.google) return;
 
     const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
       types,
@@ -63,15 +66,25 @@ export function AddressAutocompleteInput({
     // re-attaching a fresh Autocomplete with no way to tear down the old
     // one) even though the actual filter never changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isScriptLoaded, onChange, onAddressSelected, types.join(',')]);
+  }, [mapsStatus, onChange, onAddressSelected, types.join(',')]);
 
+  function handleChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    latestValueRef.current = event.target.value;
+    onChange(event.target.value);
+  }
+
+  // When Google rejects the key (e.g. this domain isn't on the key's allowed
+  // referrer list), its widget disables the input it was attached to — so
+  // swap in a brand-new, untouched input (the different `key` forces a new
+  // DOM node) and the field keeps working as plain text.
   return (
     <Input
+      key={mapsStatus === 'failed' ? 'plain' : 'autocomplete'}
       ref={inputRef}
       id={id}
       placeholder={placeholder}
-      defaultValue={defaultValue}
-      onChange={(event) => onChange(event.target.value)}
+      defaultValue={mapsStatus === 'failed' ? latestValueRef.current : defaultValue}
+      onChange={handleChange}
     />
   );
 }

@@ -1,51 +1,24 @@
-import { addDoc, collection } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 
-import { db } from '@/lib/firebase';
+// Asks app/api/opportunity-submitted to email the CoSync team about a new
+// pending opportunity. The route reads everything it puts in the email
+// (title, type, description, who submitted it) from the opportunity doc and
+// the caller's verified sign-in token, so the only input here is which
+// opportunity — see that route for why it's built that way.
+export async function notifyTeamOfSubmission(opportunityId: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in.');
 
-const TEAM_INBOX = 'mailcosync@gmail.com';
-
-// Firestore console's data-view deep link — jumps straight to a single
-// document. `~2F` is the extension's own encoding for the `/` in the
-// document path (a literal `/` there would be read as a URL segment
-// separator instead). Only works once the "Trigger Email from Firestore"
-// extension's admin actually has Firestore console access on this project,
-// which is the same person who'll be approving these by hand today (there's
-// no in-app admin/approve UI yet).
-function firestoreConsoleLink(opportunityId: string): string {
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  return `https://console.firebase.google.com/project/${projectId}/firestore/databases/-default-/data/~2Fopportunities~2F${opportunityId}`;
-}
-
-type SubmissionNotice = {
-  opportunityId: string;
-  title: string;
-  type: string;
-  submitterName: string;
-  /** Firebase Auth's `user.email` — may be null for an account that never
-   * granted an email scope. The notice still sends without it; the admin
-   * just won't have a reply-to address to work with for that one. */
-  submitterEmail: string | null;
-};
-
-// Writes a doc into the `mail` collection the "Trigger Email from
-// Firestore" extension watches — see firestore.rules' `match /mail/{mailId}`
-// for why this collection can only ever be addressed to TEAM_INBOX. The
-// extension itself (Firebase Console → Extensions) is what actually sends
-// this over SMTP; this function's only job is to queue the doc.
-export async function notifyTeamOfSubmission(notice: SubmissionNotice): Promise<void> {
-  await addDoc(collection(db, 'mail'), {
-    to: [TEAM_INBOX],
-    message: {
-      subject: `New opportunity to review: ${notice.title}`,
-      text: [
-        `${notice.submitterName} (${notice.submitterEmail ?? 'no email on file'}) submitted a new ${notice.type} opportunity for CoSync:`,
-        '',
-        notice.title,
-        '',
-        `Review and approve or reject it here: ${firestoreConsoleLink(notice.opportunityId)}`,
-        '',
-        `(Edit the opportunity's moderationStatus field to "approved" or "rejected".)`,
-      ].join('\n'),
+  const response = await fetch('/api/opportunity-submitted', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${await user.getIdToken()}`,
     },
+    body: JSON.stringify({ opportunityId }),
   });
+  if (!response.ok) {
+    const { error } = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(error ?? `Review email failed (${response.status}).`);
+  }
 }

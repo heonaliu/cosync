@@ -71,7 +71,9 @@ export type OpportunityType =
   | 'hackathon'
   | 'competition'
   | 'mentorship'
-  | 'program';
+  | 'program'
+  // Poster-written type — see Opportunity.customType.
+  | 'other';
 
 // The poster's own read on where things stand — distinct from `deadline`
 // (a single application-close date, which can coexist with any status).
@@ -90,6 +92,10 @@ export type Opportunity = {
   posterName: string;
   posterVerified: boolean;
   type: OpportunityType;
+  /** The poster's own type label (e.g. "Summer camp") — only set when type
+   * is 'other'. Display through lib/opportunityTypes.ts's
+   * opportunityTypeLabel rather than reading this directly. */
+  customType?: string;
   title: string;
   description: string;
   deadline?: number;

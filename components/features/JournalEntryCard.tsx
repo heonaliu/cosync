@@ -80,7 +80,7 @@ export function JournalEntryCard({ entry, canDelete, onDeleted }: JournalEntryCa
         )}
       </div>
 
-      <RichContent content={entry.content} />
+      <RichContent content={entry.content} maxLength={150} moreHref={threadHref} />
 
       {entry.mediaUrls && entry.mediaUrls.length > 0 && (
         <div className="flex items-center gap-2 rounded-card border border-olive bg-cream px-3 py-2 text-xs text-oak">

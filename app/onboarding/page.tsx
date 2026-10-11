@@ -169,8 +169,8 @@ export default function OnboardingPage() {
             <IconMail className="mt-0.5 size-5 shrink-0 text-deep-amber" aria-hidden="true" />
             <p className="text-sm text-ink">
               To become a verified educator, email{' '}
-              <a href="mailto:mailcosync@gmail.com" className="font-medium underline underline-offset-2">
-                mailcosync@gmail.com
+              <a href="mailto:cosync.mail@gmail.com" className="font-medium underline underline-offset-2">
+                cosync.mail@gmail.com
               </a>{' '}
               with proof of your role. Your account is created as an unverified educator until we confirm it —
               there&apos;s no automated check for this yet.

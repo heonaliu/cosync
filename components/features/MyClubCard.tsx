@@ -5,7 +5,7 @@ import { ClubBadge } from '@/components/features/ClubBadge';
 import { accentClasses } from '@/lib/color';
 import { formatClubActivity } from '@/lib/time';
 import type { Club, Discussion } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
 
 type MyClubCardProps = {
   club: Club;
@@ -35,7 +35,7 @@ export function MyClubCard({ club, recentDiscussionCount, lastDiscussionAt, upco
         </div>
       </div>
 
-      <p className="text-sm text-oak">{club.description}</p>
+      <p className="text-sm text-oak">{truncateText(club.description)}</p>
 
       <div className="flex items-center gap-1.5 text-xs text-oak">
         {upcomingEvent ? (

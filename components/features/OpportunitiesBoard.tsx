@@ -20,6 +20,7 @@ const CATEGORIES: { label: string; value: OpportunityType | 'All' }[] = [
   { label: 'Competitions', value: 'competition' },
   { label: 'Mentorships', value: 'mentorship' },
   { label: 'Programs', value: 'program' },
+  { label: 'Other', value: 'other' },
 ];
 
 // Ascending by deadline, opportunities with no deadline sink to the end

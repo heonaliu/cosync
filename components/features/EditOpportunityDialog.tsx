@@ -21,22 +21,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/Textarea';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { CUSTOM_TYPE_MAX_LENGTH, OPPORTUNITY_TYPE_OPTIONS } from '@/lib/opportunityTypes';
 import { formatDateInputValue, parseDateInputValue } from '@/lib/time';
 import type { Opportunity, OpportunityStatus, OpportunityType } from '@/lib/types';
-
-const TYPE_OPTIONS: { value: OpportunityType; label: string }[] = [
-  { value: 'research', label: 'Research' },
-  { value: 'hackathon', label: 'Hackathon' },
-  { value: 'competition', label: 'Competition' },
-  { value: 'mentorship', label: 'Mentorship' },
-  { value: 'program', label: 'Program' },
-];
 
 const STATUS_OPTIONS: OpportunityStatus[] = ['rolling', 'ongoing', 'soon', 'passed'];
 
 // Same presets as AddOpportunityDialog's AGE_RANGE_PRESETS — kept as a
-// separate copy here rather than a shared import, matching how TYPE_OPTIONS/
-// STATUS_OPTIONS are already duplicated between these two files.
+// separate copy here rather than a shared import, matching how
+// STATUS_OPTIONS is already duplicated between these two files.
 const AGE_RANGE_PRESETS: { value: '13-18' | '18+'; label: string }[] = [
   { value: '13-18', label: '13–18' },
   { value: '18+', label: '18+' },
@@ -68,6 +61,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(opportunity.title);
   const [type, setType] = useState<OpportunityType>(opportunity.type);
+  const [customType, setCustomType] = useState(opportunity.customType ?? '');
   const [description, setDescription] = useState(opportunity.description);
   const [status, setStatus] = useState<OpportunityStatus>(opportunity.status ?? 'rolling');
   const [openDate, setOpenDate] = useState(opportunity.openDate ? formatDateInputValue(new Date(opportunity.openDate)) : '');
@@ -92,6 +86,11 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
 
   async function handleSave(): Promise<void> {
     if (!canSave) return;
+    if (type === 'other' && !customType.trim()) {
+      setError('Write in what type of opportunity this is.');
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     try {
@@ -99,6 +98,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
       const payload: Record<string, unknown> = {
         title: title.trim(),
         type,
+        customType: type === 'other' ? customType.trim() : deleteField(),
         description: description.trim(),
         status,
         deadline: deadline ? parseDateInputValue(deadline) : deleteField(),
@@ -128,6 +128,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
         ...opportunity,
         title: title.trim(),
         type,
+        customType: type === 'other' ? customType.trim() : undefined,
         description: description.trim(),
         status,
         deadline: deadline ? parseDateInputValue(deadline).getTime() : undefined,
@@ -188,13 +189,23 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TYPE_OPTIONS.map((option) => (
+                {OPPORTUNITY_TYPE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {type === 'other' && (
+              <Input
+                value={customType}
+                onChange={(event) => setCustomType(event.target.value)}
+                maxLength={CUSTOM_TYPE_MAX_LENGTH}
+                placeholder="e.g. Summer camp, Scholarship, Internship"
+                aria-label="Your opportunity type"
+                required
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

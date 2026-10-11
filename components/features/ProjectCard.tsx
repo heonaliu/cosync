@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { LookingForCallout } from '@/components/features/LookingForCallout';
 import { Chip } from '@/components/ui/Chip';
 import type { Project } from '@/lib/types';
+import { truncateText } from '@/lib/utils';
 
 type ProjectCardProps = {
   project: Project;
@@ -53,7 +54,7 @@ export function ProjectCard({
 
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-medium text-ink">{project.title}</h3>
-        <p className="text-sm text-oak">{project.description || project.pitch}</p>
+        <p className="text-sm text-oak">{truncateText(project.description || project.pitch)}</p>
       </div>
 
       {variant === 'compact' && entryCount !== undefined && (

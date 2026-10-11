@@ -11,6 +11,7 @@ import { ProjectCard } from '@/components/features/ProjectCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/Chip';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { getPinnedIds, setProjectPinned } from '@/lib/pins';
 import { formatShortName } from '@/lib/profile';
 import {
@@ -227,7 +228,7 @@ export function ProfileView({ uid }: ProfileViewProps) {
               />
             </div>
 
-            {info.bio && <p className="max-w-md pt-1 text-sm text-oak">{info.bio}</p>}
+            {info.bio && <ExpandableText text={info.bio} className="max-w-md pt-1" />}
           </div>
         </div>
 

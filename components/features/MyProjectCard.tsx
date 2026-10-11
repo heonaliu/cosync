@@ -5,7 +5,7 @@ import { Chip } from '@/components/ui/Chip';
 import { STAGE_LABELS, stageColorFor } from '@/lib/color';
 import { formatRelativeTime } from '@/lib/time';
 import type { Project } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
 
 type MyProjectCardProps = {
   project: Project;
@@ -60,7 +60,7 @@ export function MyProjectCard(props: MyProjectCardProps) {
 
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-medium text-ink">{project.title}</h3>
-        <p className="text-sm text-oak">{project.pitch}</p>
+        <p className="text-sm text-oak">{truncateText(project.pitch)}</p>
       </div>
 
       {props.kind === 'owned' &&

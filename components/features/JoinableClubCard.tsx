@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import type { Club } from '@/lib/types';
 import { useJoinClub } from '@/lib/useJoinClub';
+import { truncateText } from '@/lib/utils';
 
 type JoinableClubCardProps = {
   club: Club;
@@ -33,7 +34,7 @@ export function JoinableClubCard({ club, onJoined }: JoinableClubCardProps) {
         <ClubBadge iconName={club.iconName} colorName={club.colorName} />
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium text-ink hover:underline">{club.name}</h3>
-          <p className="text-sm text-oak">{club.description}</p>
+          <p className="text-sm text-oak">{truncateText(club.description)}</p>
         </div>
       </Link>
       <div className="flex items-center justify-between gap-2 pt-1">

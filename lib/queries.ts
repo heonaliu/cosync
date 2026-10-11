@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { getNextEventOccurrence } from '@/lib/time';
 import type {
   Club,
   ClubAccess,
@@ -250,6 +251,7 @@ async function opportunityFromDoc(docSnap: DocumentSnapshot<DocumentData>): Prom
     posterName: poster.name,
     posterVerified: poster.verified,
     type: data.type ?? 'program',
+    customType: typeof data.customType === 'string' && data.customType ? data.customType : undefined,
     title: data.title ?? 'Untitled opportunity',
     description: data.description ?? '',
     deadline: data.deadline ? toMillis(data.deadline) : undefined,
@@ -540,17 +542,25 @@ export async function getRecentJournalEntries(count: number): Promise<JournalEnt
       collectionGroup(db, 'journalEntries'),
       where('projectVisibility', '==', 'public'),
       orderBy('createdAt', 'desc'),
-      limit(count)
+      // Over-fetch a little so dropped orphans (below) don't leave the feed short.
+      limit(count * 2 + 5)
     )
   );
-  return Promise.all(
+  const entries = await Promise.all(
     snapshot.docs.map(async (docSnap) => {
       const projectRef = docSnap.ref.parent.parent;
-      const projectSnap = projectRef ? await getDoc(projectRef) : null;
-      const projectTitle = (projectSnap?.data()?.title as string | undefined) ?? 'a project';
-      return journalEntryFromDoc(projectRef?.id ?? '', projectTitle, docSnap);
+      const projectSnap = projectRef ? await getDoc(projectRef).catch(() => null) : null;
+      // Deleting a project doc (e.g. by hand in the Firebase console) leaves
+      // its journalEntries subcollection behind, and this collectionGroup
+      // query still finds those orphans. Drop any entry whose project is
+      // gone or no longer public instead of showing a card that leads to a
+      // "doesn't exist" page.
+      const projectData = projectSnap?.exists() ? projectSnap.data() : null;
+      if (!projectRef || !projectData || projectData.visibility !== 'public') return null;
+      return journalEntryFromDoc(projectRef.id, (projectData.title as string | undefined) ?? 'a project', docSnap);
     })
   );
+  return entries.filter((entry): entry is JournalEntry => entry !== null).slice(0, count);
 }
 
 // Owned vs contributing are two separate queries rather than one "any project
@@ -639,52 +649,161 @@ export async function getFollowing(uid: string): Promise<UserInfo[]> {
   return Promise.all(followedUids.map((followedUid) => getUserInfo(followedUid)));
 }
 
-export type FollowSuggestion = UserInfo & { topInterest: string | null };
+export type FollowSuggestion = UserInfo & {
+  topInterest: string | null;
+  /** Names of people the viewer follows who also follow this person, most
+   * relevant first — drives "Followed by X and N others you follow". */
+  mutualNames: string[];
+  /** Total count behind mutualNames (which is capped for display). */
+  mutualCount: number;
+  /** This person already follows the viewer. */
+  followsYou: boolean;
+};
 
-// Home sidebar's "You might follow" — real signed-up students, not a
-// hardcoded placeholder list. Adults (educators/guardians/admins) are
-// excluded: CLAUDE.md is explicit that adults use this app to post
-// opportunities and mentor through public threads, not to accumulate
-// followers, so they shouldn't show up as someone to follow either.
+const MUTUAL_NAME_PREVIEW = 2;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+function suggestionFromUserDoc(
+  docSnap: DocumentSnapshot<DocumentData>
+): Omit<FollowSuggestion, 'mutualNames' | 'mutualCount' | 'followsYou'> | null {
+  const data = docSnap.data();
+  if (!data) return null;
+  // Students only. CLAUDE.md is explicit that adults use this app to post
+  // opportunities and mentor through public threads, not to accumulate
+  // followers — and an account with no role yet hasn't finished onboarding,
+  // so there's no way to know it isn't an adult.
+  if (data.role !== 'student') return null;
+  const name = (data.displayName as string | undefined) ?? (data.handle as string | undefined);
+  if (!name) return null; // hasn't actually signed up/synced a profile yet
+  const interests: string[] = Array.isArray(data.interests) ? data.interests : [];
+  return {
+    uid: docSnap.id,
+    name,
+    photoURL: (data.photoURL as string | undefined) ?? null,
+    verified: Boolean(data.verified),
+    role: 'student',
+    school: (data.school as string | undefined) ?? null,
+    location: (data.location as string | undefined) ?? null,
+    locationLat: typeof data.locationLat === 'number' ? data.locationLat : null,
+    locationLng: typeof data.locationLng === 'number' ? data.locationLng : null,
+    bio: (data.bio as string | undefined) ?? null,
+    topInterest: interests[0] ?? null,
+  };
+}
+
+// Home sidebar's "You might follow" — real signed-up students the viewer
+// doesn't follow yet, ranked by social signal first:
+//   1. mutuals — how many of the people the viewer follows also follow them
+//   2. whether they already follow the viewer (a follow-back)
+// then everyone else, so a newer account with no connections yet still
+// shows up instead of the list being capped at whoever happens to have
+// mutuals.
 //
-// Same "fetch a batch, filter in memory" pattern as getDiscoverableClubs —
-// Firestore can't combine a role-equality filter with "not this uid" and
-// "not already followed" in one query, so this over-fetches a bit and
-// trims client-side rather than round-tripping per candidate.
+// Firestore can't express "not this uid / not already followed" or count
+// across documents in one query, so this reads the viewer's follow graph
+// one hop out (follows where followerUid in [people I follow], 30 per `in`
+// query) and tallies in memory. Fine at this app's scale; a big graph would
+// want a precomputed suggestions doc instead.
 export async function getFollowSuggestions(viewerUid: string, count: number): Promise<FollowSuggestion[]> {
-  const [usersSnapshot, followsSnapshot] = await Promise.all([
-    getDocs(query(collection(db, 'users'), where('role', '==', 'student'), limit(count * 10 + 20))),
-    getDocs(query(collection(db, 'follows'), where('followerUid', '==', viewerUid))).catch(() => null),
+  const followsRef = collection(db, 'follows');
+  const [followingSnapshot, followersSnapshot, studentsSnapshot] = await Promise.all([
+    getDocs(query(followsRef, where('followerUid', '==', viewerUid))),
+    getDocs(query(followsRef, where('followedUid', '==', viewerUid))),
+    getDocs(query(collection(db, 'users'), where('role', '==', 'student'), limit(200))),
   ]);
-  const alreadyFollowing = new Set(
-    (followsSnapshot?.docs ?? []).map((docSnap) => docSnap.data().followedUid as string)
+
+  const followingUids = followingSnapshot.docs.map((docSnap) => docSnap.data().followedUid as string);
+  const alreadyFollowing = new Set(followingUids);
+  const followsViewer = new Set(followersSnapshot.docs.map((docSnap) => docSnap.data().followerUid as string));
+  const isCandidate = (uid: string): boolean => uid !== viewerUid && !alreadyFollowing.has(uid);
+
+  // candidate uid -> uids of people the viewer follows who follow them
+  const mutualsByCandidate = new Map<string, string[]>();
+  const secondHopSnapshots = await Promise.all(
+    chunk(followingUids, 30).map((uids) => getDocs(query(followsRef, where('followerUid', 'in', uids))))
   );
-
-  const suggestions: FollowSuggestion[] = [];
-  for (const docSnap of usersSnapshot.docs) {
-    if (suggestions.length >= count) break;
-    if (docSnap.id === viewerUid || alreadyFollowing.has(docSnap.id)) continue;
-
-    const data = docSnap.data();
-    const name = (data.displayName as string | undefined) ?? (data.handle as string | undefined);
-    if (!name) continue; // hasn't actually signed up/synced a profile yet
-
-    const interests: string[] = Array.isArray(data.interests) ? data.interests : [];
-    suggestions.push({
-      uid: docSnap.id,
-      name,
-      photoURL: (data.photoURL as string | undefined) ?? null,
-      verified: Boolean(data.verified),
-      role: (data.role as string | undefined) ?? null,
-      school: (data.school as string | undefined) ?? null,
-      location: (data.location as string | undefined) ?? null,
-      locationLat: typeof data.locationLat === 'number' ? data.locationLat : null,
-      locationLng: typeof data.locationLng === 'number' ? data.locationLng : null,
-      bio: (data.bio as string | undefined) ?? null,
-      topInterest: interests[0] ?? null,
-    });
+  for (const snapshot of secondHopSnapshots) {
+    for (const docSnap of snapshot.docs) {
+      const { followerUid, followedUid } = docSnap.data() as { followerUid: string; followedUid: string };
+      if (!isCandidate(followedUid)) continue;
+      mutualsByCandidate.set(followedUid, [...(mutualsByCandidate.get(followedUid) ?? []), followerUid]);
+    }
   }
-  return suggestions;
+
+  // Everyone with a social signal might fall outside the 200-student batch
+  // above, so read any of those profiles that batch didn't already include.
+  const profiles = new Map<string, NonNullable<ReturnType<typeof suggestionFromUserDoc>>>();
+  for (const docSnap of studentsSnapshot.docs) {
+    const profile = suggestionFromUserDoc(docSnap);
+    if (profile) profiles.set(profile.uid, profile);
+  }
+  const signalUids = [...mutualsByCandidate.keys(), ...followsViewer].filter(
+    (uid) => isCandidate(uid) && !profiles.has(uid)
+  );
+  const extraDocs = await Promise.all(
+    Array.from(new Set(signalUids)).map((uid) => getDoc(doc(db, 'users', uid)).catch(() => null))
+  );
+  for (const docSnap of extraDocs) {
+    const profile = docSnap ? suggestionFromUserDoc(docSnap) : null;
+    if (profile) profiles.set(profile.uid, profile);
+  }
+
+  const ranked = Array.from(profiles.values())
+    .filter((profile) => isCandidate(profile.uid))
+    .map((profile) => ({
+      profile,
+      mutualUids: mutualsByCandidate.get(profile.uid) ?? [],
+      followsYou: followsViewer.has(profile.uid),
+    }))
+    .sort(
+      (a, b) =>
+        b.mutualUids.length - a.mutualUids.length || Number(b.followsYou) - Number(a.followsYou)
+    )
+    .slice(0, count);
+
+  // Only the handful of names actually displayed get resolved.
+  return Promise.all(
+    ranked.map(async ({ profile, mutualUids, followsYou }) => ({
+      ...profile,
+      mutualNames: (await Promise.all(mutualUids.slice(0, MUTUAL_NAME_PREVIEW).map(getUserInfo))).map(
+        (info) => info.name
+      ),
+      mutualCount: mutualUids.length,
+      followsYou,
+    }))
+  );
+}
+
+export type UpcomingClubEvent = {
+  event: Discussion;
+  clubId: string;
+  clubName: string;
+  /** When this event next happens — for a recurring event, the next
+   * occurrence (lib/time.ts's getNextEventOccurrence), not its stored
+   * eventDate, which is only the series' anchor. */
+  nextOccurrence: number;
+};
+
+// Every upcoming event across the clubs this user belongs to, soonest
+// first — Home sidebar's "This week". One discussions read per club; a
+// user is only ever in a handful of clubs, so that's cheap.
+export async function getUpcomingClubEvents(uid: string): Promise<UpcomingClubEvent[]> {
+  const clubs = await getUserClubs(uid);
+  const perClub = await Promise.all(
+    clubs.map(async (club) => {
+      const discussions = await getClubDiscussions(club.id, club).catch(() => []);
+      return discussions
+        .filter((discussion) => discussion.kind === 'event')
+        .map((event) => ({ event, clubId: club.id, clubName: club.name, nextOccurrence: getNextEventOccurrence(event) }))
+        .filter((item): item is UpcomingClubEvent => item.nextOccurrence !== undefined);
+    })
+  );
+  return perClub.flat().sort((a, b) => a.nextOccurrence - b.nextOccurrence);
 }
 
 export async function getProject(projectId: string): Promise<Project | null> {

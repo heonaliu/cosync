@@ -4,6 +4,7 @@ import { IconPencil, IconTrash } from '@tabler/icons-react';
 import { deleteDoc, doc } from 'firebase/firestore';
 
 import { EditOpportunityDialog } from '@/components/features/EditOpportunityDialog';
+import { OpportunityDetailsDialog } from '@/components/features/OpportunityDetailsDialog';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
@@ -11,7 +12,7 @@ import { db } from '@/lib/firebase';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
-import { cn } from '@/lib/utils';
+import { cn, truncateText } from '@/lib/utils';
 
 type FeaturedOpportunityCardProps = {
   opportunity: Opportunity;
@@ -94,16 +95,21 @@ export function FeaturedOpportunityCard({ opportunity, onDeleted, onUpdated }: F
 
       <div className="flex flex-col gap-1">
         <h2 className="text-[22px] font-medium">{opportunity.title}</h2>
-        <p className="text-sm text-white/90">{opportunity.description}</p>
+        <p className="text-sm text-white/90">{truncateText(opportunity.description)}</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* No verification badge — see OpportunityListingCard.tsx for why,
             and where a real one would go once verification exists. */}
         <span className="text-sm text-white/90">Posted by {opportunity.posterName}</span>
-        <Button variant="outline" size="sm" className="border-transparent text-fresh hover:bg-cream">
-          Apply
-        </Button>
+        <OpportunityDetailsDialog
+          opportunity={opportunity}
+          trigger={
+            <Button variant="outline" size="sm" className="border-transparent text-fresh hover:bg-cream">
+              Learn more
+            </Button>
+          }
+        />
       </div>
     </div>
   );

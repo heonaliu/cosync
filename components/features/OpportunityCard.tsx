@@ -4,22 +4,16 @@ import { IconMapPin, IconShieldCheck, IconSparkles } from '@tabler/icons-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
+import { OpportunityDetailsDialog } from '@/components/features/OpportunityDetailsDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { OPPORTUNITY_STATUS_LABELS, opportunityStatusColorFor } from '@/lib/color';
+import { opportunityTypeLabel } from '@/lib/opportunityTypes';
 import { formatDeadline } from '@/lib/time';
-import type { Opportunity, OpportunityType } from '@/lib/types';
+import type { Opportunity } from '@/lib/types';
 import { useSavedOpportunity } from '@/lib/useSavedOpportunity';
-import { cn } from '@/lib/utils';
-
-const TYPE_LABELS: Record<OpportunityType, string> = {
-  research: 'Research',
-  hackathon: 'Hackathon',
-  competition: 'Competition',
-  mentorship: 'Mentorship',
-  program: 'Program',
-};
+import { cn, truncateText } from '@/lib/utils';
 
 type OpportunityCardProps = {
   opportunity: Opportunity;
@@ -57,7 +51,7 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Chip label={TYPE_LABELS[opportunity.type] ?? 'Opportunity'} color="lilac" />
+        <Chip label={opportunityTypeLabel(opportunity)} color="lilac" />
         {opportunity.status && (
           <Chip
             label={OPPORTUNITY_STATUS_LABELS[opportunity.status]}
@@ -79,7 +73,7 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
 
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-medium text-ink">{opportunity.title}</h3>
-        <p className="text-sm text-oak">{opportunity.description}</p>
+        <p className="text-sm text-oak">{truncateText(opportunity.description)}</p>
         {opportunity.location && (
           <span className="inline-flex items-center gap-1 text-xs text-sand">
             <IconMapPin className="size-3.5 shrink-0" aria-hidden="true" />
@@ -103,15 +97,25 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
             </span>
           )}
         </div>
-        <Button
-          type="button"
-          variant={isSaved ? 'dark' : 'outline'}
-          size="sm"
-          disabled={isLoading}
-          onClick={() => void handleSaveClick()}
-        >
-          {isSaved ? 'Saved' : 'Save'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <OpportunityDetailsDialog
+            opportunity={opportunity}
+            trigger={
+              <Button type="button" variant="ghost" size="sm">
+                Learn more
+              </Button>
+            }
+          />
+          <Button
+            type="button"
+            variant={isSaved ? 'dark' : 'outline'}
+            size="sm"
+            disabled={isLoading}
+            onClick={() => void handleSaveClick()}
+          >
+            {isSaved ? 'Saved' : 'Save'}
+          </Button>
+        </div>
       </div>
     </Card>
   );
