@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { JoinClubByCodeDialog } from '@/components/features/JoinClubByCodeDialog';
@@ -163,8 +164,17 @@ export function ClubsBoard() {
         </div>
 
         {!discoverableClubs && <p className="text-sm text-sand">Loading clubs…</p>}
-        {discoverableClubs && filteredDiscoverable.length === 0 && (
-          <p className="text-sm text-oak">No clubs match this filter yet.</p>
+        {discoverableClubs && filter === 'Your school' && !viewerSchool ? (
+          <p className="text-sm text-oak">
+            You haven&apos;t added a school yet.{' '}
+            <Link href={`/profile/${user?.uid ?? ''}`} className="text-deep-fresh hover:underline">
+              Add your school on your profile
+            </Link>{' '}
+            to see clubs at your school.
+          </p>
+        ) : (
+          discoverableClubs &&
+          filteredDiscoverable.length === 0 && <p className="text-sm text-oak">No clubs match this filter yet.</p>
         )}
         {filteredDiscoverable.length > 0 && (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">

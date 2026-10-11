@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { OPPORTUNITY_STATUS_LABELS, opportunityStatusColorFor } from '@/lib/color';
+import { formatCountries } from '@/lib/countries';
+import { formatGradeRange } from '@/lib/gradeRange';
 import { opportunityTypeLabel } from '@/lib/opportunityTypes';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity } from '@/lib/types';
@@ -30,6 +32,8 @@ type OpportunityCardProps = {
 // a save made here shows up on /opportunities and /saved and vice versa
 // with no extra wiring, since both cards are just two views onto one hook.
 export function OpportunityCard({ opportunity, recommendationReason }: OpportunityCardProps) {
+  const gradeRange = formatGradeRange(opportunity.gradeMin, opportunity.gradeMax);
+  const countries = formatCountries(opportunity.countries);
   const { isSaved, isLoading, toggle } = useSavedOpportunity(opportunity);
 
   async function handleSaveClick(): Promise<void> {
@@ -69,6 +73,8 @@ export function OpportunityCard({ opportunity, recommendationReason }: Opportuni
         {opportunity.ageRange && (
           <span className="whitespace-nowrap text-xs text-sand">Ages {opportunity.ageRange}</span>
         )}
+        {gradeRange && <span className="whitespace-nowrap text-xs text-sand">{gradeRange}</span>}
+        {countries && <span className="text-xs text-sand">{countries}</span>}
       </div>
 
       <div className="flex flex-col gap-1">

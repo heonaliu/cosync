@@ -1,6 +1,9 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import nodemailer from 'nodemailer';
 
+import { formatCountries } from '@/lib/countries';
+import { formatGradeRange } from '@/lib/gradeRange';
+
 // Emails the CoSync team when someone submits an opportunity for review.
 // Replaces the "Trigger Email from Firestore" extension, which needs the
 // paid Blaze plan — this runs as a plain Vercel serverless function instead
@@ -23,10 +26,18 @@ const firebaseKeys = createRemoteJWKSet(
   new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
 );
 
-type FirestoreFields = Record<string, { stringValue?: string } | undefined>;
+type FirestoreFields = Record<
+  string,
+  { stringValue?: string; integerValue?: string; arrayValue?: { values?: { stringValue?: string }[] } } | undefined
+>;
 
 function field(fields: FirestoreFields, name: string): string {
   return fields[name]?.stringValue ?? '';
+}
+
+function intField(fields: FirestoreFields, name: string): number | undefined {
+  const raw = fields[name]?.integerValue;
+  return raw === undefined ? undefined : Number(raw);
 }
 
 function firestoreConsoleLink(opportunityId: string): string {
@@ -83,6 +94,10 @@ export async function POST(request: Request): Promise<Response> {
   const type =
     field(fields, 'type') === 'other' ? field(fields, 'customType') || 'other' : field(fields, 'type') || 'opportunity';
   const description = field(fields, 'description');
+  const gradeRange = formatGradeRange(intField(fields, 'gradeMin'), intField(fields, 'gradeMax'));
+  const countries = formatCountries(
+    (fields.countries?.arrayValue?.values ?? []).map((value) => value.stringValue ?? '').filter(Boolean)
+  );
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -99,6 +114,8 @@ export async function POST(request: Request): Promise<Response> {
         `${submitterName} (${submitterEmail ?? 'no email on file'}) submitted a new ${type} opportunity for CoSync:`,
         '',
         title,
+        ...(gradeRange ? [`For: ${gradeRange}`] : []),
+        ...(countries ? [`Countries: ${countries}`] : []),
         '',
         description,
         '',

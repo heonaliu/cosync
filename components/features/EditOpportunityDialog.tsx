@@ -4,6 +4,7 @@ import { deleteField, doc, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
 
 import { AddressAutocompleteInput } from '@/components/features/AddressAutocompleteInput';
+import { GradeRangeField } from '@/components/features/GradeRangeField';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/DatePicker';
 import {
@@ -20,6 +21,7 @@ import { PillToggle } from '@/components/ui/PillToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
+import { parseCountries } from '@/lib/countries';
 import { db } from '@/lib/firebase';
 import { CUSTOM_TYPE_MAX_LENGTH, OPPORTUNITY_TYPE_OPTIONS } from '@/lib/opportunityTypes';
 import { formatDateInputValue, parseDateInputValue } from '@/lib/time';
@@ -76,6 +78,11 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
   const [ageRangePreset, setAgeRangePreset] = useState<'13-18' | '18+' | 'custom' | null>(
     ageRangePresetFor(opportunity.ageRange)
   );
+  const [gradeRange, setGradeRange] = useState<{ min: number | null; max: number | null }>({
+    min: opportunity.gradeMin ?? null,
+    max: opportunity.gradeMax ?? null,
+  });
+  const [countries, setCountries] = useState((opportunity.countries ?? []).join(', '));
   const [ageRangeCustom, setAgeRangeCustom] = useState(
     ageRangePresetFor(opportunity.ageRange) === 'custom' ? (opportunity.ageRange ?? '') : ''
   );
@@ -95,6 +102,7 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
     setError(null);
     try {
       const ageRange = ageRangePreset === 'custom' ? ageRangeCustom.trim() : (ageRangePreset ?? '');
+      const countryList = parseCountries(countries);
       const payload: Record<string, unknown> = {
         title: title.trim(),
         type,
@@ -108,6 +116,9 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
         // stale date behind once it no longer means anything.
         openDate: status === 'soon' && openDate ? parseDateInputValue(openDate) : deleteField(),
         ageRange: ageRange ? ageRange : deleteField(),
+        gradeMin: gradeRange.min ?? deleteField(),
+        gradeMax: gradeRange.max ?? deleteField(),
+        countries: countryList.length > 0 ? countryList : deleteField(),
       };
       // Always set both together, never leave one stale: if the location
       // text was free-typed rather than picked from the dropdown (coords is
@@ -138,6 +149,9 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
         applicationUrl: applicationUrl.trim() || undefined,
         openDate: status === 'soon' && openDate ? parseDateInputValue(openDate).getTime() : undefined,
         ageRange: ageRange || undefined,
+        gradeMin: gradeRange.min ?? undefined,
+        gradeMax: gradeRange.max ?? undefined,
+        countries: countryList.length > 0 ? countryList : undefined,
       });
       setOpen(false);
     } catch (saveError) {
@@ -274,12 +288,32 @@ export function EditOpportunityDialog({ opportunity, trigger, onSaved }: EditOpp
             {ageRangePreset === 'custom' && (
               <Input
                 aria-label="Custom age range"
-                placeholder="e.g. Grades 9–12"
+                placeholder="e.g. 16+"
                 value={ageRangeCustom}
                 onChange={(event) => setAgeRangeCustom(event.target.value)}
                 className="mt-1"
               />
             )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="edit-opportunity-grade-min" className="text-sm text-ink">
+              Grade range <span className="text-sand">(optional)</span>
+            </label>
+            <GradeRangeField idPrefix="edit-opportunity-grade" min={gradeRange.min} max={gradeRange.max} onChange={setGradeRange} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="edit-opportunity-countries" className="text-sm text-ink">
+              Countries <span className="text-sand">(optional)</span>
+            </label>
+            <Input
+              id="edit-opportunity-countries"
+              value={countries}
+              onChange={(event) => setCountries(event.target.value)}
+              placeholder="e.g. USA, Canada"
+            />
+            <span className="text-xs text-sand">Only if it&apos;s limited to certain countries. Separate them with commas.</span>
           </div>
 
           <div className="flex flex-col gap-1.5">

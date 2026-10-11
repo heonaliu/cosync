@@ -26,6 +26,7 @@ const STAGES: { value: StageFilterValue; label: string }[] = [
   { value: 'idea', label: 'Idea' },
   { value: 'prototyping', label: 'Prototyping' },
   { value: 'shipping', label: 'Shipping' },
+  { value: 'launched', label: 'Launched' },
   { value: 'lookingForTeam', label: 'Looking for team' },
 ];
 
@@ -129,7 +130,12 @@ export function DiscoverBoard() {
       ) : filteredProjects.length > 0 ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} entryCount={project.journalEntryCount} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              entryCount={project.journalEntryCount}
+              team={{ ownerName: project.ownerName, collaboratorNames: project.collaboratorNames }}
+            />
           ))}
         </div>
       ) : (

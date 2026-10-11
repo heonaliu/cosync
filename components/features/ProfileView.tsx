@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/Chip';
 import { ExpandableText } from '@/components/ui/ExpandableText';
 import { getPinnedIds, setProjectPinned } from '@/lib/pins';
+import { unfollowUser } from '@/lib/useFollowUser';
 import { formatShortName } from '@/lib/profile';
 import {
   getFollowerCount,
@@ -213,6 +214,14 @@ export function ProfileView({ uid }: ProfileViewProps) {
               <FollowListDialog
                 title="Following"
                 fetchList={() => getFollowing(uid)}
+                onUnfollow={
+                  isOwnProfile
+                    ? async (followedUid) => {
+                        await unfollowUser(uid, followedUid);
+                        setFollowingCount((count) => Math.max(0, count - 1));
+                      }
+                    : undefined
+                }
                 trigger={
                   <button
                     type="button"

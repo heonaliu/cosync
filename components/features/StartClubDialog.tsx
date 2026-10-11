@@ -1,10 +1,10 @@
 'use client';
 
-import { IconLock, IconSchool, IconWorld } from '@tabler/icons-react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { ClubAccessPicker } from '@/components/features/ClubAccessPicker';
 import { ClubBadge } from '@/components/features/ClubBadge';
 import { ClubScopePicker } from '@/components/features/ClubScopePicker';
 import { ClubTagPicker } from '@/components/features/ClubTagPicker';
@@ -19,7 +19,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/Input';
-import { PillToggle } from '@/components/ui/PillToggle';
 import { Textarea } from '@/components/ui/Textarea';
 import { accentClasses } from '@/lib/color';
 import { CLUB_COLOR_OPTIONS, CLUB_ICON_OPTIONS } from '@/lib/clubIcons';
@@ -28,33 +27,6 @@ import { getUserInfo } from '@/lib/queries';
 import type { ClubAccess, ClubColorName, ClubIconName, ClubScope } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 import { cn } from '@/lib/utils';
-
-const ACCESS_OPTIONS: {
-  value: ClubAccess;
-  icon: React.ComponentType<{ className?: string }>;
-  title: (schoolName: string | null) => string;
-  description: (schoolName: string | null) => string;
-}[] = [
-  {
-    value: 'schoolOnly',
-    icon: IconSchool,
-    title: (schoolName) => (schoolName ? `${schoolName} students only` : 'Students at my school only'),
-    description: (schoolName) =>
-      schoolName ? `Verified ${schoolName} students can join freely` : 'Verified students at your school can join freely',
-  },
-  {
-    value: 'anyone',
-    icon: IconWorld,
-    title: () => 'Anyone',
-    description: () => 'Any CoSync student can join',
-  },
-  {
-    value: 'invite',
-    icon: IconLock,
-    title: () => 'By invite only',
-    description: () => 'Hidden from Discover — people join with your invite link',
-  },
-];
 
 type FormState = {
   name: string;
@@ -290,30 +262,7 @@ export function StartClubDialog({ onCreated }: StartClubDialogProps) {
 
           <div className="flex flex-col gap-1.5">
             <span className="text-sm text-ink">Who can join</span>
-            <div className="flex flex-col gap-2">
-              {ACCESS_OPTIONS.map((option) => {
-                const isSelected = form.access === option.value;
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => updateField('access', option.value)}
-                    className={cn(
-                      'flex items-center gap-3 rounded-card border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresh',
-                      isSelected ? 'border-2 border-fresh bg-white' : 'border-olive bg-white hover:bg-cream'
-                    )}
-                  >
-                    <Icon className="size-5 shrink-0 text-deep-fresh" aria-hidden="true" />
-                    <span className="flex flex-col">
-                      <span className="text-sm font-medium text-ink">{option.title(schoolName)}</span>
-                      <span className="text-xs text-oak">{option.description(schoolName)}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <ClubAccessPicker access={form.access} schoolName={schoolName} onChange={(access) => updateField('access', access)} />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

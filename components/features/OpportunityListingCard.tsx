@@ -19,6 +19,8 @@ import {
   type AccentColor,
 } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { formatCountries } from '@/lib/countries';
+import { formatGradeRange } from '@/lib/gradeRange';
 import { opportunityTypeLabel } from '@/lib/opportunityTypes';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
@@ -75,6 +77,8 @@ export function OpportunityListingCard({
     opportunity.deadline ? `Deadline: ${formatDeadline(opportunity.deadline)}` : null,
     opportunity.location,
     opportunity.ageRange ? `Ages ${opportunity.ageRange}` : null,
+    formatGradeRange(opportunity.gradeMin, opportunity.gradeMax),
+    formatCountries(opportunity.countries),
   ].filter((part): part is string => Boolean(part));
 
   async function handleSaveClick(): Promise<void> {
@@ -152,15 +156,19 @@ export function OpportunityListingCard({
 
         {isOwnPost && (
           <>
-            <EditOpportunityDialog
-              opportunity={opportunity}
-              onSaved={(updated) => onUpdated?.(updated)}
-              trigger={
-                <Button type="button" variant="ghost" size="icon-sm" aria-label="Edit opportunity">
-                  <IconPencil className="size-4 text-sand" />
-                </Button>
-              }
-            />
+            {/* Approved posts are locked for their poster (firestore.rules
+                enforces it) — what went live is what was reviewed. */}
+            {opportunity.moderationStatus !== 'approved' && (
+              <EditOpportunityDialog
+                opportunity={opportunity}
+                onSaved={(updated) => onUpdated?.(updated)}
+                trigger={
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Edit opportunity">
+                    <IconPencil className="size-4 text-sand" />
+                  </Button>
+                }
+              />
+            )}
             <ConfirmDialog
               trigger={
                 <Button type="button" variant="ghost" size="icon-sm" aria-label="Delete opportunity">

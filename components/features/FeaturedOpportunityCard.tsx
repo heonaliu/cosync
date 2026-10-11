@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
 import { db } from '@/lib/firebase';
+import { formatCountries } from '@/lib/countries';
+import { formatGradeRange } from '@/lib/gradeRange';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
@@ -23,6 +25,8 @@ type FeaturedOpportunityCardProps = {
 };
 
 export function FeaturedOpportunityCard({ opportunity, onDeleted, onUpdated }: FeaturedOpportunityCardProps) {
+  const gradeRange = formatGradeRange(opportunity.gradeMin, opportunity.gradeMax);
+  const countries = formatCountries(opportunity.countries);
   const { user } = useAuth();
   const isOwnPost = user?.uid === opportunity.posterUid;
 
@@ -53,25 +57,31 @@ export function FeaturedOpportunityCard({ opportunity, onDeleted, onUpdated }: F
             <span className="text-sm text-white/80">Opens {formatDeadline(opportunity.openDate)}</span>
           )}
           {opportunity.ageRange && <span className="text-sm text-white/80">Ages {opportunity.ageRange}</span>}
+          {gradeRange && <span className="text-sm text-white/80">{gradeRange}</span>}
+          {countries && <span className="text-sm text-white/80">{countries}</span>}
         </div>
 
         {isOwnPost && (
           <div className="flex items-center gap-1">
-            <EditOpportunityDialog
-              opportunity={opportunity}
-              onSaved={(updated) => onUpdated?.(updated)}
-              trigger={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Edit opportunity"
-                  className="text-white hover:bg-white/20 hover:text-white"
-                >
-                  <IconPencil className="size-4" />
-                </Button>
-              }
-            />
+            {/* Approved posts are locked for their poster (firestore.rules
+                enforces it) — what went live is what was reviewed. */}
+            {opportunity.moderationStatus !== 'approved' && (
+              <EditOpportunityDialog
+                opportunity={opportunity}
+                onSaved={(updated) => onUpdated?.(updated)}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Edit opportunity"
+                    className="text-white hover:bg-white/20 hover:text-white"
+                  >
+                    <IconPencil className="size-4" />
+                  </Button>
+                }
+              />
+            )}
             <ConfirmDialog
               trigger={
                 <Button

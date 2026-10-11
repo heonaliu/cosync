@@ -13,6 +13,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { formatCountries } from '@/lib/countries';
+import { formatGradeRange } from '@/lib/gradeRange';
 import { opportunityTypeLabel } from '@/lib/opportunityTypes';
 import { formatDeadline } from '@/lib/time';
 import type { Opportunity, OpportunityType } from '@/lib/types';
@@ -42,6 +44,8 @@ export function OpportunityDetailsDialog({ opportunity, trigger }: OpportunityDe
     opportunity.status === 'soon' && opportunity.openDate ? `Opens ${formatDeadline(opportunity.openDate)}` : null,
     opportunity.location,
     opportunity.ageRange ? `Ages ${opportunity.ageRange}` : null,
+    formatGradeRange(opportunity.gradeMin, opportunity.gradeMax),
+    formatCountries(opportunity.countries),
   ].filter((part): part is string => Boolean(part));
 
   return (

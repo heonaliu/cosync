@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { LookingForCallout } from '@/components/features/LookingForCallout';
 import { ProjectCardBanner } from '@/components/features/ProjectCardBanner';
 import { Chip } from '@/components/ui/Chip';
+import { formatShortName } from '@/lib/profile';
 import type { Project } from '@/lib/types';
 import { truncateText } from '@/lib/utils';
 
@@ -18,13 +19,27 @@ type ProjectCardProps = {
    * Discover, omitted everywhere else since it's a separate aggregation
    * query per card, not a field the caller always has on hand. */
   entryCount?: number;
+  /** Discover's "by … with …" credit line, bottom left. */
+  team?: { ownerName: string; collaboratorNames: string[] };
 };
+
+const MAX_NAMED_COLLABORATORS = 2;
+
+// "Heona L." / "Heona L. with Sam K." / "Heona L. with Sam K., Ana R. +3"
+function formatTeam({ ownerName, collaboratorNames }: { ownerName: string; collaboratorNames: string[] }): string {
+  const owner = formatShortName(ownerName);
+  if (collaboratorNames.length === 0) return owner;
+  const named = collaboratorNames.slice(0, MAX_NAMED_COLLABORATORS).map(formatShortName).join(', ');
+  const extra = collaboratorNames.length - MAX_NAMED_COLLABORATORS;
+  return `${owner} with ${named}${extra > 0 ? ` +${extra}` : ''}`;
+}
 
 export function ProjectCard({
   project,
   variant = 'compact',
   recommendationReason,
   entryCount,
+  team,
 }: ProjectCardProps) {
   // .filter(Boolean) guards against a malformed doc with a blank/null slot
   // in its tags array (e.g. edited directly in the Firebase Console rather
@@ -60,11 +75,28 @@ export function ProjectCard({
         <p className="text-sm text-oak">{truncateText(project.description || project.pitch)}</p>
       </div>
 
-      {variant === 'compact' && entryCount !== undefined && (
-        <p className="text-xs text-sand">
-          {collaboratorCount} {collaboratorCount === 1 ? 'person' : 'people'} · {entryCount}{' '}
-          {entryCount === 1 ? 'entry' : 'entries'}
-        </p>
+      {variant === 'compact' && team ? (
+        // mt-auto pins the credit line to the bottom, so it lines up across
+        // a row of cards with different description lengths.
+        <div className="mt-auto flex items-end justify-between gap-3 pt-1 text-xs">
+          <p className="min-w-0 text-oak">
+            <span className="text-sand">by </span>
+            {formatTeam(team)}
+          </p>
+          {entryCount !== undefined && (
+            <span className="shrink-0 whitespace-nowrap text-sand">
+              {entryCount} {entryCount === 1 ? 'entry' : 'entries'}
+            </span>
+          )}
+        </div>
+      ) : (
+        variant === 'compact' &&
+        entryCount !== undefined && (
+          <p className="text-xs text-sand">
+            {collaboratorCount} {collaboratorCount === 1 ? 'person' : 'people'} · {entryCount}{' '}
+            {entryCount === 1 ? 'entry' : 'entries'}
+          </p>
+        )
       )}
 
       {variant === 'feed' && (

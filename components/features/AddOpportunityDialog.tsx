@@ -18,9 +18,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/Input';
 import { PillToggle } from '@/components/ui/PillToggle';
+import { GradeRangeField } from '@/components/features/GradeRangeField';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { OPPORTUNITY_STATUS_LABELS } from '@/lib/color';
+import { parseCountries } from '@/lib/countries';
 import { db } from '@/lib/firebase';
 import { notifyTeamOfSubmission } from '@/lib/opportunityMail';
 import { CUSTOM_TYPE_MAX_LENGTH, OPPORTUNITY_TYPE_OPTIONS } from '@/lib/opportunityTypes';
@@ -54,6 +56,9 @@ type FormState = {
    * is the source of truth, not this field's own value. */
   ageRangePreset: '13-18' | '18+' | 'custom' | null;
   ageRangeCustom: string;
+  gradeMin: number | null;
+  gradeMax: number | null;
+  countries: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -70,6 +75,9 @@ const EMPTY_FORM: FormState = {
   openDate: '',
   ageRangePreset: null,
   ageRangeCustom: '',
+  gradeMin: null,
+  gradeMax: null,
+  countries: '',
 };
 
 type AddOpportunityDialogProps = {
@@ -136,6 +144,10 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
       const ageRange =
         form.ageRangePreset === 'custom' ? form.ageRangeCustom.trim() : (form.ageRangePreset ?? '');
       if (ageRange) payload.ageRange = ageRange;
+      if (form.gradeMin !== null) payload.gradeMin = form.gradeMin;
+      if (form.gradeMax !== null) payload.gradeMax = form.gradeMax;
+      const countries = parseCountries(form.countries);
+      if (countries.length > 0) payload.countries = countries;
 
       const opportunityRef = await addDoc(collection(db, 'opportunities'), payload);
 
@@ -318,12 +330,32 @@ export function AddOpportunityDialog({ onCreated }: AddOpportunityDialogProps) {
               <Input
                 autoFocus
                 aria-label="Custom age range"
-                placeholder="e.g. Grades 9–12"
+                placeholder="e.g. 16+"
                 value={form.ageRangeCustom}
                 onChange={(event) => updateField('ageRangeCustom', event.target.value)}
                 className="mt-1"
               />
             )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="opportunity-grade-min" className="text-sm text-ink">
+              Grade range <span className="text-sand">(optional)</span>
+            </label>
+            <GradeRangeField idPrefix="opportunity-grade" min={form.gradeMin} max={form.gradeMax} onChange={(range) => setForm((previous) => ({ ...previous, gradeMin: range.min, gradeMax: range.max }))} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="opportunity-countries" className="text-sm text-ink">
+              Countries <span className="text-sand">(optional)</span>
+            </label>
+            <Input
+              id="opportunity-countries"
+              value={form.countries}
+              onChange={(event) => updateField('countries', event.target.value)}
+              placeholder="e.g. USA, Canada"
+            />
+            <span className="text-xs text-sand">Only if it&apos;s limited to certain countries. Separate them with commas.</span>
           </div>
 
           <div className="flex flex-col gap-1.5">

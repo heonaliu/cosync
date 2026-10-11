@@ -18,6 +18,12 @@ function followDocId(followerUid: string, followedUid: string): string {
   return `${followerUid}_${followedUid}`;
 }
 
+// For lists of people you follow (your profile's Following dialog), where
+// there's no per-person hook to toggle through.
+export async function unfollowUser(followerUid: string, followedUid: string): Promise<void> {
+  await deleteDoc(doc(db, 'follows', followDocId(followerUid, followedUid)));
+}
+
 // Same optimistic-toggle shape as useFollowProject, but backed by the
 // standalone follows/{followerUid}_{followedUid} collection instead of an
 // array on the target's own doc — see getFollowerCount in lib/queries.ts

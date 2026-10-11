@@ -16,7 +16,9 @@ import {
 } from 'firebase/firestore';
 
 import { normalizeClubScope } from '@/lib/clubScopes';
+import { isCountryList } from '@/lib/countries';
 import { db } from '@/lib/firebase';
+import { isGrade } from '@/lib/gradeRange';
 import { isCloudinaryImageUrl } from '@/lib/imageUpload';
 import { getNextEventOccurrence } from '@/lib/time';
 import type {
@@ -229,12 +231,21 @@ export async function getDiscoverProjects(viewerUid: string): Promise<ProjectWit
         !project.memberUids.includes(viewerUid)
     );
 
+  // One lookup per person, however many projects they're on.
+  const names = new Map<string, Promise<string>>();
+  const nameOf = (uid: string): Promise<string> => {
+    if (!names.has(uid)) names.set(uid, getUserInfo(uid).then((info) => info.name).catch(() => 'Someone'));
+    return names.get(uid) as Promise<string>;
+  };
+
   return Promise.all(
     projects.map(async (project) => {
-      const countSnapshot = await getCountFromServer(
-        collection(db, 'projects', project.id, 'journalEntries')
-      ).catch(() => null);
-      return { ...project, journalEntryCount: countSnapshot?.data().count ?? 0 };
+      const [countSnapshot, ownerName, collaboratorNames] = await Promise.all([
+        getCountFromServer(collection(db, 'projects', project.id, 'journalEntries')).catch(() => null),
+        nameOf(project.ownerUid),
+        Promise.all(project.memberUids.filter((uid) => uid !== project.ownerUid).map(nameOf)),
+      ]);
+      return { ...project, journalEntryCount: countSnapshot?.data().count ?? 0, ownerName, collaboratorNames };
     })
   );
 }
@@ -269,6 +280,9 @@ async function opportunityFromDoc(docSnap: DocumentSnapshot<DocumentData>): Prom
     status: data.status,
     openDate: data.openDate ? toMillis(data.openDate) : undefined,
     ageRange: typeof data.ageRange === 'string' ? data.ageRange : undefined,
+    gradeMin: isGrade(data.gradeMin) ? data.gradeMin : undefined,
+    gradeMax: isGrade(data.gradeMax) ? data.gradeMax : undefined,
+    countries: isCountryList(data.countries) ? data.countries : undefined,
     // Any doc written before this field existed reads as already-approved —
     // see the doc comment on Opportunity.moderationStatus in lib/types.ts.
     // This only helps direct-by-id reads (getOpportunitiesByIds,

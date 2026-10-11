@@ -4,6 +4,7 @@ import { deleteField, doc, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { ClubAccessPicker } from '@/components/features/ClubAccessPicker';
 import { ClubScopePicker } from '@/components/features/ClubScopePicker';
 import { ClubTagPicker } from '@/components/features/ClubTagPicker';
 import { SchoolInput } from '@/components/features/SchoolInput';
@@ -19,7 +20,7 @@ import {
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { db } from '@/lib/firebase';
-import type { Club, ClubScope } from '@/lib/types';
+import type { Club, ClubAccess, ClubScope } from '@/lib/types';
 
 type EditClubDialogProps = {
   club: Club;
@@ -38,6 +39,7 @@ export function EditClubDialog({ club, open, onOpenChange, onSaved }: EditClubDi
   const [scope, setScope] = useState<ClubScope>(club.scope);
   const [customScope, setCustomScope] = useState(club.customScope ?? '');
   const [schoolName, setSchoolName] = useState(club.schoolName ?? '');
+  const [access, setAccess] = useState<ClubAccess>(club.access);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +51,7 @@ export function EditClubDialog({ club, open, onOpenChange, onSaved }: EditClubDi
       setScope(club.scope);
       setCustomScope(club.customScope ?? '');
       setSchoolName(club.schoolName ?? '');
+      setAccess(club.access);
       setError(null);
     }
     onOpenChange(nextOpen);
@@ -64,8 +67,8 @@ export function EditClubDialog({ club, open, onOpenChange, onSaved }: EditClubDi
       setError('Say where the club meets, or pick a different option.');
       return;
     }
-    if (club.access === 'schoolOnly' && !schoolName.trim()) {
-      setError('This club is school-only, so it needs a school.');
+    if (access === 'schoolOnly' && !schoolName.trim()) {
+      setError('Add the school above for a school-only club, or pick a different "Who can join" option.');
       return;
     }
     setIsSaving(true);
@@ -78,6 +81,7 @@ export function EditClubDialog({ club, open, onOpenChange, onSaved }: EditClubDi
         scope,
         customScope: scope === 'other' ? customScope.trim() : deleteField(),
         schoolName: schoolName.trim().replace(/\s+/g, ' ') || deleteField(),
+        access,
       });
       onOpenChange(false);
       onSaved();
@@ -124,10 +128,15 @@ export function EditClubDialog({ club, open, onOpenChange, onSaved }: EditClubDi
             </label>
             <SchoolInput id="edit-club-school" value={schoolName} onChange={setSchoolName} />
             <p className="text-xs text-sand">
-              {club.access === 'schoolOnly'
+              {access === 'schoolOnly'
                 ? 'Only students whose profile lists this exact school can find and join without a code — pick it from the suggestions if it’s there.'
                 : 'Pick from the suggestions if your school is already on CoSync, so everyone uses the same name.'}
             </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-ink">Who can join</span>
+            <ClubAccessPicker access={access} schoolName={schoolName.trim() || null} onChange={setAccess} />
           </div>
 
           <div className="flex flex-col gap-1.5">

@@ -12,6 +12,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
@@ -51,8 +52,17 @@ export async function getUnseenNotificationCount(uid: string): Promise<number> {
   return snapshot.data().count;
 }
 
-export async function markNotificationSeen(uid: string, notificationId: string): Promise<void> {
-  await updateDoc(doc(db, 'notifications', uid, 'items', notificationId), { seen: true });
+// Fired once notifications have been marked seen, so Nav's avatar badge
+// (which lives across page changes and otherwise only fetches on load)
+// clears right away — see useUnseenNotificationCount.
+export const NOTIFICATIONS_SEEN_EVENT = 'cosync:notifications-seen';
+
+export async function markNotificationsSeen(uid: string, notificationIds: string[]): Promise<void> {
+  if (notificationIds.length === 0) return;
+  const batch = writeBatch(db);
+  notificationIds.forEach((id) => batch.update(doc(db, 'notifications', uid, 'items', id), { seen: true }));
+  await batch.commit();
+  window.dispatchEvent(new Event(NOTIFICATIONS_SEEN_EVENT));
 }
 
 // Sends a project collaboration invite: an owner-initiated doc at

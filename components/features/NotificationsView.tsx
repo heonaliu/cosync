@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/Card';
-import { acceptProjectInvite, declineProjectInvite, getNotifications, markNotificationSeen } from '@/lib/notifications';
+import { acceptProjectInvite, declineProjectInvite, getNotifications, markNotificationsSeen } from '@/lib/notifications';
 import { formatRelativeTime } from '@/lib/time';
 import type { Notification } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
@@ -16,6 +16,10 @@ export function NotificationsView() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Which ones were new when this page opened. They're marked seen in
+  // Firestore straight away (clearing the avatar badge), but keep their
+  // green dot for this visit so you can still tell what's new.
+  const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -24,14 +28,14 @@ export function NotificationsView() {
     getNotifications(user.uid)
       .then((result) => {
         if (cancelled) return;
+        const unseen = result.filter((notification) => !notification.seen).map((notification) => notification.id);
         setNotifications(result);
-        // The avatar dot is what flags "something's new" — once someone's
-        // actually looking at this list, every unseen item in it is seen.
-        result.filter((notification) => !notification.seen).forEach((notification) => {
-          void markNotificationSeen(user.uid, notification.id).catch((error: unknown) =>
-            console.error('Failed to mark notification seen:', error)
-          );
-        });
+        setUnreadIds(new Set(unseen));
+        // Once someone's actually looking at this list, every unseen item
+        // in it counts as read.
+        markNotificationsSeen(user.uid, unseen).catch((error: unknown) =>
+          console.error('Failed to mark notifications seen:', error)
+        );
       })
       .catch((error: unknown) => {
         console.error('Failed to load notifications:', error);
@@ -86,6 +90,15 @@ export function NotificationsView() {
         <li key={notification.id}>
           <Card className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
+              {/* Fixed-width slot so read and unread rows line up. */}
+              <span className="flex w-2 shrink-0 justify-center">
+                {unreadIds.has(notification.id) && (
+                  <>
+                    <span aria-hidden="true" className="size-2 rounded-full bg-fresh" />
+                    <span className="sr-only">Unread</span>
+                  </>
+                )}
+              </span>
               <Avatar name={notification.actorName} size="sm" decorative />
               <div className="flex min-w-0 flex-col">
                 {notification.kind === 'mention' && (

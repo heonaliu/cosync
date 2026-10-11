@@ -73,7 +73,13 @@ export type JoinRequest = {
 // isn't a field on the project doc itself — it's a separate aggregation
 // query per project, so it's modeled as a distinct type rather than baked
 // into Project.
-export type ProjectWithStats = Project & { journalEntryCount: number };
+export type ProjectWithStats = Project & {
+  journalEntryCount: number;
+  /** Full display names, for the Discover card's "by … with …" line — shown
+   * through formatShortName, never as-is. */
+  ownerName: string;
+  collaboratorNames: string[];
+};
 
 export type OpportunityType =
   | 'research'
@@ -143,6 +149,13 @@ export type Opportunity = {
    * stored value gets matched back to a preset pill vs. shown as custom.
    * undefined = not specified, omitted from the listing entirely. */
   ageRange?: string;
+  /** Optional grade range — either end may be open. 6–12, or 13 for
+   * college; display through lib/gradeRange.ts's formatGradeRange. */
+  gradeMin?: number;
+  gradeMax?: number;
+  /** Countries it's limited to (e.g. ["USA", "Canada"]); undefined = open
+   * everywhere. Typed comma separated — see lib/countries.ts. */
+  countries?: string[];
   createdAt: number;
 };
 
