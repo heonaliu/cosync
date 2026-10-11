@@ -19,10 +19,12 @@ import {
   getOpportunitiesByTags,
   getOwnedProjects,
   getProjectsByTags,
+  getProjectTeams,
   getPublicProjects,
   getRecentJournalEntries,
   getUserInfo,
   getUserInterests,
+  type ProjectTeam,
 } from '@/lib/queries';
 import { WEEKDAY_LABELS } from '@/lib/time';
 import type { JournalEntry as JournalEntryData, Opportunity, Project } from '@/lib/types';
@@ -59,6 +61,9 @@ type FeedData = {
    * scoped to the viewer and previously — incorrectly — was what the nudge
    * read from, meaning it could point at a stranger's project. */
   ownedProjects: Project[];
+  /** Owner + collaborator names for every project card the feed can show,
+   * keyed by project id. */
+  teams: Map<string, ProjectTeam>;
 };
 
 // The three shapes a "For you" card can be, each carrying its own recency
@@ -177,6 +182,15 @@ export function HomeFeed() {
         }),
       ]);
 
+      // Names for the "by … with …" line on every project card these tabs
+      // can render. A failure just drops the line, not the feed.
+      const teams = await getProjectTeams([...matchedProjects, ...followedProjects, ...projects.slice(0, 1)]).catch(
+        (error: unknown) => {
+          console.error('Failed to load project teams:', error);
+          return new Map<string, ProjectTeam>();
+        }
+      );
+
       if (!cancelled) {
         setData({
           entries,
@@ -187,6 +201,7 @@ export function HomeFeed() {
           matchedProjects,
           matchedOpportunities,
           ownedProjects,
+          teams,
         });
         setUserLocation(ownInfo.location);
         setUserLocationLat(ownInfo.locationLat);
@@ -361,6 +376,7 @@ export function HomeFeed() {
                         project={item.project}
                         variant="feed"
                         recommendationReason={item.reason}
+                        team={data.teams.get(item.project.id)}
                       />
                     );
                   case 'opportunity':
@@ -376,7 +392,9 @@ export function HomeFeed() {
             : hasFallback && (
                 <>
                   {fallbackEntry && <JournalEntry entry={fallbackEntry} />}
-                  {fallbackProject && <ProjectCard project={fallbackProject} variant="feed" />}
+                  {fallbackProject && (
+                    <ProjectCard project={fallbackProject} variant="feed" team={data.teams.get(fallbackProject.id)} />
+                  )}
                   {fallbackOpportunity && <OpportunityCard opportunity={fallbackOpportunity} />}
                 </>
               )}
@@ -395,7 +413,7 @@ export function HomeFeed() {
             entry ? (
               <JournalEntry key={project.id} entry={entry} />
             ) : (
-              <ProjectCard key={project.id} project={project} variant="feed" />
+              <ProjectCard key={project.id} project={project} variant="feed" team={data.teams.get(project.id)} />
             )
           )}
         </>

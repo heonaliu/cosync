@@ -19,7 +19,7 @@ type ProjectCardProps = {
    * Discover, omitted everywhere else since it's a separate aggregation
    * query per card, not a field the caller always has on hand. */
   entryCount?: number;
-  /** Discover's "by … with …" credit line, bottom left. */
+  /** The "by … with …" credit line, bottom left (Discover and Home). */
   team?: { ownerName: string; collaboratorNames: string[] };
 };
 
@@ -101,9 +101,16 @@ export function ProjectCard({
 
       {variant === 'feed' && (
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <span className="whitespace-nowrap text-sm text-oak">
-            {collaboratorCount} collaborator{collaboratorCount === 1 ? '' : 's'}
-          </span>
+          {team ? (
+            <p className="min-w-0 text-sm text-oak">
+              <span className="text-sand">by </span>
+              {formatTeam(team)}
+            </p>
+          ) : (
+            <span className="whitespace-nowrap text-sm text-oak">
+              {collaboratorCount} collaborator{collaboratorCount === 1 ? '' : 's'}
+            </span>
+          )}
           {project.lookingFor && (
             <div className="flex flex-wrap gap-1.5">
               {project.lookingFor.map((item, index) => (

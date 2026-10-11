@@ -231,23 +231,43 @@ export async function getDiscoverProjects(viewerUid: string): Promise<ProjectWit
         !project.memberUids.includes(viewerUid)
     );
 
-  // One lookup per person, however many projects they're on.
+  const [teams, counts] = await Promise.all([
+    getProjectTeams(projects),
+    Promise.all(
+      projects.map((project) =>
+        getCountFromServer(collection(db, 'projects', project.id, 'journalEntries')).catch(() => null)
+      )
+    ),
+  ]);
+
+  return projects.map((project, index) => ({
+    ...project,
+    journalEntryCount: counts[index]?.data().count ?? 0,
+    ...(teams.get(project.id) ?? { ownerName: 'Someone', collaboratorNames: [] }),
+  }));
+}
+
+export type ProjectTeam = { ownerName: string; collaboratorNames: string[] };
+
+// Owner + collaborator names for each project's "by … with …" credit line,
+// keyed by project id. One lookup per person, however many projects they're on.
+export async function getProjectTeams(projects: Project[]): Promise<Map<string, ProjectTeam>> {
   const names = new Map<string, Promise<string>>();
   const nameOf = (uid: string): Promise<string> => {
     if (!names.has(uid)) names.set(uid, getUserInfo(uid).then((info) => info.name).catch(() => 'Someone'));
     return names.get(uid) as Promise<string>;
   };
 
-  return Promise.all(
-    projects.map(async (project) => {
-      const [countSnapshot, ownerName, collaboratorNames] = await Promise.all([
-        getCountFromServer(collection(db, 'projects', project.id, 'journalEntries')).catch(() => null),
+  const entries = await Promise.all(
+    projects.map(async (project): Promise<[string, ProjectTeam]> => {
+      const [ownerName, collaboratorNames] = await Promise.all([
         nameOf(project.ownerUid),
         Promise.all(project.memberUids.filter((uid) => uid !== project.ownerUid).map(nameOf)),
       ]);
-      return { ...project, journalEntryCount: countSnapshot?.data().count ?? 0, ownerName, collaboratorNames };
+      return [project.id, { ownerName, collaboratorNames }];
     })
   );
+  return new Map(entries);
 }
 
 // Accepts a plain DocumentSnapshot (not just QueryDocumentSnapshot) so it
