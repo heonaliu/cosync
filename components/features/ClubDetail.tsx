@@ -77,11 +77,8 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
 
   async function handleJoin(): Promise<void> {
     try {
-      // A code only matters (and only gets spent) for a club this person
-      // couldn't otherwise join.
       await join(club && !isClubOpenTo(club, viewerSchool) ? inviteCode : undefined);
-      // The code's been spent — drop it so a copied URL from here on is
-      // just the club's plain page link.
+      
       if (inviteCode) router.replace(`/clubs/${clubId}`);
       setReloadToken((token) => token + 1);
     } catch (error) {
@@ -106,9 +103,7 @@ export function ClubDetail({ clubId }: ClubDetailProps) {
   const isOpenToViewer = isClubOpenTo(club, viewerSchool);
   const canJoin = isOpenToViewer || Boolean(inviteCode);
 
-  // Invite-only clubs, and school-only clubs at someone else's school, stay
-  // out of sight for anyone without a code: no description, no discussion
-  // previews, nothing to join.
+  // Invite-only clubs
   if (!isOpenToViewer && !isMember && !inviteCode) {
     return (
       <p className="text-sm text-oak">

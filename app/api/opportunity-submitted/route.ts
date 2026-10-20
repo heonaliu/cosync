@@ -20,8 +20,6 @@ export const runtime = 'nodejs';
 const TEAM_INBOX = 'cosync.mail@gmail.com';
 const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? '';
 
-// Google's published signing keys for Firebase Auth ID tokens. jose caches
-// them between requests, so this isn't a fetch per email.
 const firebaseKeys = createRemoteJWKSet(
   new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
 );
@@ -77,8 +75,6 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'Missing opportunity id.' }, { status: 400 });
   }
 
-  // Firestore REST, authenticated as the caller — the opportunities read
-  // rule lets a poster read their own pending post, and nobody else's.
   const docResponse = await fetch(
     `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/opportunities/${opportunityId}`,
     { headers: { Authorization: `Bearer ${idToken}` }, cache: 'no-store' }

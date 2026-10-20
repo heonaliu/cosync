@@ -12,10 +12,6 @@ import type { ProjectStage, ProjectWithStats } from '@/lib/types';
 import { useAuth } from '@/lib/useAuth';
 
 const CATEGORIES = ['All', ...PROJECT_CATEGORY_TAGS] as const;
-
-// The filter pill says "AI/ML" but a project's own tags array just says
-// "AI" (see the ArtBot card) — this maps each filter label to the tag
-// value(s) it should actually match against.
 const CATEGORY_TAGS: Record<string, string[]> = {
   'AI/ML': ['AI', 'AI/ML', 'ML'],
 };

@@ -44,8 +44,6 @@ export function toMillis(value: unknown): number {
   return typeof value === 'number' ? value : Date.now();
 }
 
-// Accepts both the current array shape and the single-object shape older
-// projects were saved with. Empty/invalid input reads as "not looking".
 function normalizeLookingFor(value: unknown): LookingForRole[] | undefined {
   const items = Array.isArray(value) ? value : value ? [value] : [];
   const roles = items
@@ -82,14 +80,10 @@ function projectFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Project {
 export type UserInfo = {
   uid: string;
   name: string;
-  /** The synced Google account photo (see useAuth's profile sync) — null
-   * until that's run at least once, or if the account has no photo. */
   photoURL: string | null;
   verified: boolean;
   role: string | null;
   school: string | null;
-  /** Coarse, self-reported city/area. Powers Home's Nearby filter tab. null
-   * until the person sets one via LocationField. */
   location: string | null;
   /** The city-level centroid behind `location` (LocationField restricts
    * its Places Autocomplete to whole cities, never a street address) — see
@@ -97,7 +91,6 @@ export type UserInfo = {
    * null whenever location is null, or was set before this field existed. */
   locationLat: number | null;
   locationLng: number | null;
-  /** Free-text "about me," editable via EditProfileDialog. null until set. */
   bio: string | null;
 };
 
@@ -132,14 +125,6 @@ export async function getUserInfo(uid: string): Promise<UserInfo> {
   };
 }
 
-// Interests now live on the main users/{uid} doc (matching CLAUDE.md's
-// documented schema) so a profile page can show them to any signed-in
-// visitor, not just the owner — a deliberate product decision, since they
-// used to live at users/{uid}/private/profile specifically to keep them
-// owner-only. The fallback read below is only for uids that onboarded
-// before that change and never re-saved; it's skipped entirely once the
-// main doc has a real answer, so it doesn't add a second read per call in
-// the common case.
 export async function getUserInterests(uid: string): Promise<string[]> {
   const snapshot = await getDoc(doc(db, 'users', uid));
   const interests = snapshot.data()?.interests;
@@ -149,18 +134,6 @@ export async function getUserInterests(uid: string): Promise<string[]> {
   const legacyInterests = legacySnapshot.data()?.interests;
   return Array.isArray(legacyInterests) ? legacyInterests : [];
 }
-
-// Public projects whose tags overlap with the given interests — Home's "For
-// you" tab uses this instead of getPublicProjects when the viewer actually
-// has interests set, so the "recommended" label means something real.
-// array-contains-any caps at 10 values, hence the slice.
-//
-// The extra visibility filter isn't just belt-and-suspenders: Firestore
-// rejects a list query outright unless it can statically prove every
-// possible result satisfies the security rule's OR'd conditions, and a bare
-// `tags array-contains-any` filter doesn't line up with any branch of
-// `visibility == 'public' || ownerUid == uid || uid in memberUids` on its
-// own (see getFollowedProjects for the same fix, hit the same way).
 export async function getProjectsByTags(tags: string[], count: number): Promise<Project[]> {
   if (tags.length === 0) return [];
   const snapshot = await getDocs(
@@ -205,19 +178,6 @@ export async function getPublicProjects(count: number): Promise<Project[]> {
   );
   return snapshot.docs.map(projectFromDoc);
 }
-
-// Discover shows every public project (no page-size cap the way the Home
-// teaser has one), plus a per-project journal-entry count for the "X people
-// · Y entries" line. getCountFromServer is an aggregation query — it counts
-// server-side without downloading the entries themselves.
-//
-// Discover is for finding *other* people's work, so the viewer's own
-// projects and anything they collaborate on are left out. Firestore has no
-// "array does not contain" operator, so that part is filtered in memory —
-// before the per-project counts, so excluded projects cost no extra reads.
-// The in-memory visibility check repeats the query's filter on purpose:
-// projectFromDoc defaults a missing visibility to 'public', and this list
-// must never show a private or unlisted project regardless.
 export async function getDiscoverProjects(viewerUid: string): Promise<ProjectWithStats[]> {
   const snapshot = await getDocs(
     query(collection(db, 'projects'), where('visibility', '==', 'public'), orderBy('createdAt', 'desc'))
@@ -249,8 +209,6 @@ export async function getDiscoverProjects(viewerUid: string): Promise<ProjectWit
 
 export type ProjectTeam = { ownerName: string; collaboratorNames: string[] };
 
-// Owner + collaborator names for each project's "by … with …" credit line,
-// keyed by project id. One lookup per person, however many projects they're on.
 export async function getProjectTeams(projects: Project[]): Promise<Map<string, ProjectTeam>> {
   const names = new Map<string, Promise<string>>();
   const nameOf = (uid: string): Promise<string> => {
@@ -270,11 +228,6 @@ export async function getProjectTeams(projects: Project[]): Promise<Map<string, 
   return new Map(entries);
 }
 
-// Accepts a plain DocumentSnapshot (not just QueryDocumentSnapshot) so it
-// also works for one-off getDoc() lookups — used by getSavedOpportunities,
-// where each saved opportunity is fetched individually by id rather than
-// coming back as query results. Returns null if the doc doesn't exist
-// (e.g. a saved opportunity that was later deleted).
 async function opportunityFromDoc(docSnap: DocumentSnapshot<DocumentData>): Promise<Opportunity | null> {
   if (!docSnap.exists()) return null;
   const data = docSnap.data();
