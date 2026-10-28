@@ -8,7 +8,7 @@
 - https://www.youtube.com/watch?v=czrnoJf73dk
 
 ## Purpose:
-- This was built to support young builders in collaboration of their projects and aspirations. Both Maya and I have experienced the feeling where we've wanted to build something yet didn't know where to look for others interested in collaborating on the same projects.
+- This was built for the Congressional App Challenge to support young builders in collaboration of their projects and aspirations. Both Maya and I have experienced the feeling where we've wanted to build something yet didn't know where to look for others interested in collaborating on the same projects.
 - We hope CoSync will connect builders across the world just as it has hackathons and project building has connected Maya and I
 
 ## Technical Stack:
