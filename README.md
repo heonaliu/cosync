@@ -4,6 +4,9 @@
 ## Live Link:
 - http://startcosync.org
 
+## Video Demo:
+- https://www.youtube.com/watch?v=czrnoJf73dk
+
 ## Purpose:
 - This was built to support young builders in collaboration of their projects and aspirations. Both Maya and I have experienced the feeling where we've wanted to build something yet didn't know where to look for others interested in collaborating on the same projects.
 - We hope CoSync will connect builders across the world just as it has hackathons and project building has connected Maya and I
@@ -18,3 +21,7 @@
 
 ## Future Improvements
 - If we were to improve this project for the future, we'd have approved educators and a markdown style journal entries!
+
+
+## What we are proud of:
+- We come from separate high schools so throughout 2025 we had to coordinate times to meet outside of school! We're proud of spending roughly 5 months of building together and figuring out how to make CoSync its best.
